@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกเวลาเรียน - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- ✅ โหลด Chart.js สำหรับสร้างกราฟ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; overflow-x: hidden; }
+
+        /* แถบเมนูซ้าย */
+        .sidebar { 
+            width: 280px; background-color: #2b2946; color: white; 
+            height: 100vh; position: fixed; padding: 25px; 
+            display: flex; flex-direction: column; top: 0; left: 0;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 1000;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.15);
+        }
+        
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* ✅ ปุ่มเปิด-ปิด ติดขอบขวาของ Sidebar */
+        .toggle-btn-sidebar {
+            position: absolute;
+            top: 25px;
+            right: -42px;
+            width: 42px;
+            height: 45px;
+            background-color: #2b2946;
+            color: white;
+            border-radius: 0 12px 12px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 4px 2px 10px rgba(0,0,0,0.2);
+            transition: background-color 0.3s;
+        }
+        
+        .toggle-btn-sidebar:hover {
+            background-color: #3f3c63;
+        }
+
+        #toggleIcon {
+            font-size: 1.1rem;
+            transition: transform 0.4s ease;
+        }
+        
+        .sidebar.collapsed #toggleIcon {
+            transform: rotate(180deg);
+        }
+
+        .sidebar h4 { color: #00d2ff; font-weight: 600; margin-bottom: 25px; text-align: center; }
+        
+        .sidebar-profile { text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #444075; }
+        .sidebar-profile img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #00d2ff; margin-bottom: 10px; }
+
+        .nav-link { 
+            color: #b0b0c0; padding: 14px; text-decoration: none; 
+            border-radius: 10px; margin-bottom: 8px; transition: 0.3s; display: block;
+        }
+        .nav-link:hover, .nav-link.active { background-color: #444075; color: white; }
+
+        /* พื้นที่แสดงผลขวา */
+        .main-content { 
+            margin-left: 280px; padding: 40px; width: 100%; 
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        
+        .main-content.expanded {
+            margin-left: 0;
+        }
+        
+        .dashboard-container { max-width: 1000px; margin: 0 auto; padding-top: 20px; }
+        
+        .profile-card { 
+            background: white; border-radius: 20px; padding: 35px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-left: 8px solid #00d2ff;
+            display: flex; align-items: center; gap: 25px; 
+            margin-bottom: 25px;
+        }
+        .profile-card img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid #f4f7f6; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        /* ✅ ปรับแต่งการ์ดสถิติให้จัดระเบียบสวยงาม ไม่ซ้อนทับ */
+        .stat-card { 
+            background: #fff; border-radius: 15px; padding: 15px 10px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center;
+            height: 100%; display: flex; flex-direction: column; justify-content: center;
+        }
+        .stat-card h6 { font-size: 0.85rem; white-space: nowrap; margin-bottom: 5px; }
+        .stat-card h4 { font-size: 1.2rem; font-weight: bold; margin-bottom: 0; }
+
+        /* ✅ สไตล์สำหรับการ์ดแสดงกราฟ */
+        .chart-card {
+            background: #fff; border-radius: 20px; padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            margin-top: 25px; text-align: center;
+        }
+        .chart-container {
+            position: relative;
+            max-width: 350px;
+            margin: 0 auto;
+        }
+
+        /* รองรับหน้าจอมือถือ */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0 !important;
+                padding: 15px;
+                padding-top: 30px;
+            }
+            .profile-card {
+                flex-direction: column;
+                text-align: center;
+                padding: 20px;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <div class="toggle-btn-sidebar" id="toggleSidebarBtn" title="ซ่อน/แสดง เมนู">
+            <span id="toggleIcon">❮</span>
+        </div>
+
+        <h4>NKTC SYSTEM</h4>
+        
+        <div class="sidebar-profile">
+            <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" alt="Profile">
+            <h6 class="mb-0 fw-bold">{{ teacher_name }}</h6>
+        </div>
+
+        <a href="/dashboard" class="nav-link active">🏠 หน้าหลัก</a>
+        <a href="/register" class="nav-link">📝 เพิ่มนักเรียน</a>
+        <a href="/students" class="nav-link">👥 รายชื่อนักเรียน</a>
+        <a href="/report" class="nav-link">📊 รายงานเข้าเรียน</a>
+        <a href="/profile" class="nav-link">👤 ข้อมูลส่วนตัว</a>
+        <div class="mt-auto">
+            <a href="/logout" class="nav-link text-danger">ออกจากระบบ</a>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="dashboard-container">
+
+            <div class="profile-card">
+                <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" alt="Profile">
+                <div>
+                    <h4 class="fw-bold mb-2">สวัสดีครับครู {{ teacher_name }}</h4>
+                    <p class="text-muted small mb-2">ที่ปรึกษา: {{ teacher_room }} </p>
+                    <button onclick="autoSelectCamera()" class="btn btn-primary px-4 py-2 mt-1">📸 เริ่มสแกนใบหน้านักเรียน</button>
+                </div>
+            </div>
+
+            <!-- ✅ จัดระเบียบ Bootstrap Grid (มือถือแสดง 3 ช่องต่อแถว, คอมแสดง 5 ช่องเรียงยาว) -->
+            <div class="row g-2">
+                <div class="col-4 col-md">
+                    <div class="stat-card">
+                        <h6 class="text-muted">ทั้งหมด</h6>
+                        <h4 class="text-primary" id="stat-total">--</h4>
+                    </div>
+                </div>
+                <div class="col-4 col-md">
+                    <div class="stat-card">
+                        <h6 class="text-muted">มาเรียน</h6>
+                        <h4 class="text-success" id="stat-present">--</h4>
+                    </div>
+                </div>
+                <div class="col-4 col-md">
+                    <div class="stat-card">
+                        <h6 class="text-muted">มาสาย</h6>
+                        <h4 class="text-warning" id="stat-late">--</h4>
+                    </div>
+                </div>
+                <div class="col-6 col-md">
+                    <div class="stat-card">
+                        <h6 class="text-muted">ลา</h6>
+                        <h4 class="text-info" id="stat-leave">--</h4>
+                    </div>
+                </div>
+                <div class="col-6 col-md">
+                    <div class="stat-card">
+                        <h6 class="text-muted">ขาดเรียน</h6>
+                        <h4 class="text-danger" id="stat-absent">--</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ✅ การ์ดแสดงกราฟโดนัท -->
+            <div class="chart-card">
+                <h5 class="fw-bold mb-4" style="color: #2b2946;">📈 สัดส่วนการเข้าเรียนประจำวัน</h5>
+                <div class="chart-container">
+                    <canvas id="attendanceChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const toggleBtn = document.getElementById('toggleSidebarBtn');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+
+        toggleBtn.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+            }
+        });
+
+        function autoSelectCamera() {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            window.location.href = isMobile ? "/scan_mobile" : "/scan";
+        }
+
+        const ctx = document.getElementById('attendanceChart').getContext('2d');
+        const attendanceChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['มาเรียน', 'มาสาย', 'ลา', 'ขาดเรียน'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#198754', '#ffc107', '#0dcaf0', '#dc3545'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                family: 'Kanit',
+                                size: 14
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        function loadDashboardStats() {
+            fetch('/api/dashboard-stats')
+            .then(r => r.json())
+            .then(data => {
+                if (data.total !== undefined) {
+                    document.getElementById('stat-total').innerText = data.total + " คน";
+                    document.getElementById('stat-present').innerText = data.present + " คน";
+                    document.getElementById('stat-late').innerText = data.late + " คน";
+                    document.getElementById('stat-leave').innerText = data.leave + " คน";
+                    document.getElementById('stat-absent').innerText = data.absent + " คน";
+
+                    attendanceChart.data.datasets[0].data = [data.present, data.late, data.leave, data.absent];
+                    attendanceChart.update();
+                }
+            })
+            .catch(err => console.error("Error loading stats:", err));
+        }
+
+        loadDashboardStats();
+        setInterval(loadDashboardStats, 5000);
+    </script>
+</body>
+</html>

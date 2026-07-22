@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เพิ่มนักเรียนใหม่ - NKTC SYSTEM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; overflow-x: hidden; }
+        
+        /* แถบเมนูซ้าย */
+        .sidebar { 
+            width: 280px; background-color: #2b2946; color: white; height: 100vh; position: fixed; 
+            padding: 25px; display: flex; flex-direction: column; top: 0; left: 0; 
+            box-shadow: 4px 0 15px rgba(0,0,0,0.15); z-index: 1000; 
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); 
+        }
+        .sidebar.collapsed { transform: translateX(-100%); }
+
+        /* ✅ ปุ่มลูกศรติดขอบขวาของ Sidebar */
+        .toggle-btn-sidebar {
+            position: absolute;
+            top: 25px;
+            right: -42px;
+            width: 42px;
+            height: 45px;
+            background-color: #2b2946;
+            color: white;
+            border-radius: 0 12px 12px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 4px 2px 10px rgba(0,0,0,0.2);
+            transition: background-color 0.3s;
+        }
+        .toggle-btn-sidebar:hover {
+            background-color: #3f3c63;
+        }
+        #toggleIcon {
+            font-size: 1.1rem;
+            transition: transform 0.4s ease;
+        }
+        .sidebar.collapsed #toggleIcon {
+            transform: rotate(180deg);
+        }
+
+        .sidebar h4 { color: #00d2ff; font-weight: 600; margin-bottom: 25px; text-align: center; }
+        .sidebar-profile { text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #444075; }
+        .sidebar-profile img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #00d2ff; margin-bottom: 10px; }
+        .nav-link { color: #b0b0c0; padding: 14px; text-decoration: none; border-radius: 10px; margin-bottom: 8px; transition: 0.3s; display: block; }
+        .nav-link:hover, .nav-link.active { background-color: #444075; color: white; }
+        
+        /* พื้นที่แสดงผลขวา */
+        .main-content { 
+            margin-left: 280px; padding: 40px; width: 100%; display: flex; 
+            justify-content: center; align-items: flex-start; min-height: 100vh; 
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .main-content.expanded { margin-left: 0; }
+        
+        .register-card { background: white; border-radius: 20px; padding: 40px; width: 100%; max-width: 800px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-top: 8px solid #00d2ff; }
+        .form-control, .form-select { border-radius: 8px; margin-bottom: 15px; border: 1px solid #ddd; }
+        .form-label { font-weight: 600; color: #333; margin-bottom: 5px; font-size: 0.95rem; }
+        .btn-save { background-color: #2b2946; color: white; font-weight: 600; border: none; padding: 12px 30px; border-radius: 8px; }
+        .camera-container { width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 15px; }
+        #cameraFeed, #previewImage { width: 100%; height: 100%; object-fit: cover; }
+        .mirror { transform: scaleX(-1); }
+
+        /* ✅ รองรับหน้าจอมือถือ */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0 !important;
+                padding: 20px;
+                padding-top: 30px;
+            }
+            .register-card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <!-- ✅ ปุ่มลูกศรติดขอบขวาของ Sidebar -->
+        <div class="toggle-btn-sidebar" id="toggleSidebarBtn" title="ซ่อน/แสดง เมนู">
+            <span id="toggleIcon">❮</span>
+        </div>
+
+        <h4>NKTC SYSTEM</h4>
+        <div class="sidebar-profile">
+            <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" alt="Profile">
+            <h6 class="mb-0 fw-bold">{{ teacher_name }}</h6>
+        </div>
+        <a href="/dashboard" class="nav-link">🏠 หน้าหลัก</a>
+        <a href="/register" class="nav-link active">📝 เพิ่มนักเรียน</a>
+        <a href="/students" class="nav-link">👥 รายชื่อนักเรียน</a>
+        <a href="/report" class="nav-link">📊 รายงานเข้าเรียน</a>
+        <a href="/profile" class="nav-link">👤 ข้อมูลส่วนตัว</a>
+        <div class="mt-auto"> <a href="/logout" class="nav-link text-danger">ออกจากระบบ</a> </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="register-card">
+            <h4 class="fw-bold mb-4" style="color: #030506;">ข้อมูลส่วนตัว</h4>
+            <form id="registerForm">
+                <div class="row">
+                    <div class="col-md-6"><label class="form-label">รหัสนักเรียน *</label><input type="text" class="form-control" id="student_id" required></div>
+                    <div class="col-md-6"><label class="form-label">คำนำหน้า *</label><select class="form-select" id="prefix"><option>นาย</option><option>นาง</option><option>นางสาว</option></select></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6"><label class="form-label">ชื่อ *</label><input type="text" class="form-control" id="name" required></div>
+                    <div class="col-md-6"><label class="form-label">นามสกุล *</label><input type="text" class="form-control" id="lastname" required></div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6"><label class="form-label">ชั้นเรียน *</label><select class="form-select" id="class_group">{% for cls in class_list %}<option>{{ cls }}</option>{% endfor %}</select></div>
+                    <div class="col-md-6"><label class="form-label">เบอร์โทรศัพท์</label><input type="tel" class="form-control" id="phone"></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6"><label class="form-label">วันเกิด</label><input type="date" class="form-control" id="birthdate"></div>
+                    <div class="col-md-6">
+                        <label class="form-label">สถานะนักเรียน</label>
+                        <select class="form-select" id="status">
+                            <option>กำลังศึกษา</option>
+                            <option>สำเร็จการศึกษา</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="department" value="{{ department }}">
+                <input type="hidden" id="room" value="{{ teacher_room }}">
+
+                <h4 class="fw-bold mt-4 mb-3" style="color: #030506;">ที่อยู่ปัจจุบัน</h4>
+                <label class="form-label">ที่อยู่ (บ้านเลขที่, หมู่, ซอย, ถนน)</label>
+                <input type="text" class="form-control" id="address">
+                <div class="row">
+                    <div class="col-md-6"><label class="form-label">ตำบล/แขวง</label><input type="text" class="form-control" id="sub_district"></div>
+                    <div class="col-md-6"><label class="form-label">อำเภอ/เขต</label><input type="text" class="form-control" id="district"></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6"><label class="form-label">จังหวัด</label><input type="text" class="form-control" id="province"></div>
+                    <div class="col-md-6"><label class="form-label">รหัสไปรษณีย์</label><input type="text" class="form-control" id="zipcode"></div>
+                </div>
+
+                <!-- กล้อง -->
+                <div class="text-center mt-4">
+                    <button type="button" class="btn btn-info w-100 mb-3 text-white fw-bold" id="startCameraBtn">📸 เปิดกล้องบันทึกใบหน้า</button>
+                    
+                    <div id="cameraArea" class="d-none">
+                        <div class="camera-container"><video id="cameraFeed" autoplay playsinline muted></video></div>
+                        <div class="d-flex gap-2 mb-3">
+                            <button type="button" class="btn btn-outline-secondary w-50" id="switchBtn">🔄 สลับกล้อง</button>
+                            <button type="button" class="btn btn-danger w-50" id="captureBtn">📷 ถ่ายรูป</button>
+                        </div>
+                    </div>
+
+                    <div id="previewArea" class="d-none">
+                        <div class="camera-container">
+                            <img id="previewImage" alt="Preview">
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary w-100 mb-3" id="retakeBtn">🔄 ถ่ายใหม่</button>
+                    </div>
+
+                    <canvas id="canvas" class="d-none"></canvas>
+                </div>
+
+                <div class="form-check my-3">
+                    <input class="form-check-input border-secondary" type="checkbox" id="pdpa" required>
+                    <label class="form-check-label small text-muted" for="pdpa">ข้าพเจ้ายินยอมให้จัดเก็บข้อมูลใบหน้าตามกฎหมาย PDPA</label>
+                </div>
+
+                <button type="submit" class="btn btn-save w-100 mt-2">💾 บันทึกข้อมูลนักเรียน</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ✅ สคริปต์ควบคุมการหุบ/กาง แถบเมนูซ้าย
+        const toggleBtn = document.getElementById('toggleSidebarBtn');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+
+        toggleBtn.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        });
+
+        // เมื่อหน้าเว็บโหลดเสร็จ ถ้ารันบนมือถือ ให้หุบเมนูรอไว้เลยอัตโนมัติ
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+            }
+        });
+
+        // ควบคุมกล้อง
+        const video = document.getElementById('cameraFeed');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const cameraArea = document.getElementById('cameraArea');
+        const previewArea = document.getElementById('previewArea');
+        const switchBtn = document.getElementById('switchBtn');
+        
+        let streamReference = null;
+        let uploadedBase64 = "";
+        let currentFacingMode = "user"; 
+
+        function startCamera(mode) {
+            if (streamReference) streamReference.getTracks().forEach(t => t.stop());
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } })
+                .then(s => { 
+                    streamReference = s; 
+                    video.srcObject = s; 
+                    video.className = (mode === "user") ? "mirror" : "";
+                })
+                .catch(e => { alert("เปิดกล้องไม่ได้: " + e.message); });
+        }
+
+        document.getElementById('startCameraBtn').addEventListener('click', () => {
+            document.getElementById('startCameraBtn').classList.add('d-none');
+            cameraArea.classList.remove('d-none');
+            startCamera(currentFacingMode);
+        });
+
+        switchBtn.addEventListener('click', () => {
+            currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+            startCamera(currentFacingMode);
+        });
+
+        document.getElementById('captureBtn').addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            uploadedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('previewImage').src = uploadedBase64;
+            document.getElementById('previewImage').className = video.className;
+
+            cameraArea.classList.add('d-none'); 
+            previewArea.classList.remove('d-none');
+            if(streamReference) streamReference.getTracks().forEach(t => t.stop());
+        });
+
+        document.getElementById('retakeBtn').addEventListener('click', () => {
+            previewArea.classList.add('d-none');
+            cameraArea.classList.remove('d-none');
+            startCamera(currentFacingMode);
+        });
+
+        document.getElementById('registerForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if(!uploadedBase64) { alert("กรุณาถ่ายรูปใบหน้า!"); return; }
+            
+            const prefix = document.getElementById('prefix').value;
+            const firstname = document.getElementById('name').value;
+            const lastname = document.getElementById('lastname').value;
+            const fullName = prefix + firstname + " " + lastname;
+            
+            const addressFull = document.getElementById('address').value + " ต." + document.getElementById('sub_district').value + " อ." + document.getElementById('district').value + " จ." + document.getElementById('province').value + " " + document.getElementById('zipcode').value;
+
+            // ส่งข้อมูลโดยไม่มี citizen_id
+            const data = {
+                student_id: document.getElementById('student_id').value,
+                name: fullName,
+                phone: document.getElementById('phone').value,
+                address: addressFull,
+                status: document.getElementById('status').value,
+                department: document.getElementById('department').value,
+                room: document.getElementById('room').value,
+                class_group: document.getElementById('class_group').value,
+                image: uploadedBase64
+            };
+
+            fetch('/api/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            }).then(r => r.json()).then(res => {
+                if(res.status === 'success') { 
+                    alert("บันทึกข้อมูลนักเรียนสำเร็จ!"); 
+                    window.location.reload(); 
+                } else {
+                    alert("เกิดข้อผิดพลาด: " + res.message);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ข้อมูลส่วนตัวครู - NKTC SYSTEM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    
+    <style>
+        /* เปลี่ยนพื้นหลังให้เป็นโทนสว่าง เหมือนหน้า Index/Register */
+        body { font-family: 'Kanit', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; color: #333; overflow-x: hidden; }
+
+        /* แถบเมนูซ้าย (Sidebar) */
+        .sidebar { 
+            width: 280px; background-color: #2b2946; color: white; 
+            height: 100vh; position: fixed; padding: 25px; 
+            display: flex; flex-direction: column; top: 0; left: 0;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 1000;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.15);
+        }
+        
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* ✅ ปุ่มเปิด-ปิด ที่ติดกับขอบ Sidebar ดีไซน์ใหม่ */
+        .toggle-btn-sidebar {
+            position: absolute;
+            top: 30px;
+            right: -42px;
+            width: 42px;
+            height: 45px;
+            background-color: #2b2946;
+            color: white;
+            border-radius: 0 12px 12px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 4px 2px 10px rgba(0,0,0,0.2);
+            transition: background-color 0.3s;
+        }
+        
+        .toggle-btn-sidebar:hover {
+            background-color: #3f3c63;
+        }
+
+        #toggleIcon {
+            font-size: 1.1rem;
+            transition: transform 0.4s ease;
+        }
+        
+        /* เมื่อหุบเมนู ให้ลูกศรหมุนกลับไปชี้ด้านขวา */
+        .sidebar.collapsed #toggleIcon {
+            transform: rotate(180deg);
+        }
+
+        .sidebar h4 { color: #00d2ff; font-weight: 600; margin-bottom: 25px; text-align: center; }
+        
+        .sidebar-profile { text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #444075; }
+        .sidebar-profile img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #00d2ff; margin-bottom: 10px; }
+
+        .nav-link { 
+            color: #b0b0c0; padding: 14px; text-decoration: none; 
+            border-radius: 10px; margin-bottom: 8px; transition: 0.3s; display: block;
+        }
+        .nav-link:hover, .nav-link.active { background-color: #444075; color: white; }
+
+        /* พื้นที่แสดงผลขวา */
+        .main-content { 
+            margin-left: 280px; padding: 40px; width: 100%; 
+            display: flex; justify-content: center; align-items: flex-start; 
+            min-height: 100vh;
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        /* เปลี่ยนการ์ดข้อมูล Profile เป็นสีขาวขอบฟ้า */
+        .profile-card { 
+            background: white; border-radius: 20px; padding: 35px; 
+            width: 100%; max-width: 900px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
+            border-top: 8px solid #00d2ff; 
+        }
+        
+        /* เปลี่ยนช่องกรอกข้อมูลให้เป็นโทนสว่าง */
+        .form-control, .form-select { border-radius: 8px; margin-bottom: 15px; border: 1px solid #ddd; background-color: #fff; color: #333; }
+        .form-control:focus, .form-select:focus { border-color: #00d2ff; box-shadow: 0 0 0 0.2rem rgba(0, 210, 255, 0.25); background-color: #fff; color: #333; }
+        .form-label { font-weight: 600; color: #333; margin-bottom: 5px; font-size: 0.95rem; }
+        
+        /* เปลี่ยนปุ่มบันทึกให้เข้ากับธีม */
+        .btn-save { background-color: #2b2946; color: white; font-weight: 600; border: none; width: 100%; padding: 12px; border-radius: 8px; transition: 0.3s; }
+        .btn-save:hover { background-color: #1a1829; }
+        .required { color: red; }
+
+        /* CSS สำหรับกล่องอัปโหลดรูปโปรไฟล์ */
+        .profile-upload-container { text-align: center; margin-bottom: 25px; }
+        .profile-pic-preview { 
+            width: 140px; height: 140px; border-radius: 50%; object-fit: cover; 
+            border: 4px solid #00d2ff; background-color: #f4f7f6; 
+            cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .profile-pic-preview:hover { opacity: 0.8; border-color: #2b2946; }
+        .upload-input { display: none; } 
+
+        /* ปรับโทนสี Choices.js ให้เป็นสีสว่าง */
+        .choices__inner { background-color: #fff !important; border: 1px solid #ddd !important; border-radius: 8px !important; color: #333; }
+        .choices__input { background-color: transparent !important; color: #333 !important; }
+        .choices__list--dropdown { background-color: #fff !important; border: 1px solid #ddd !important; color: #333; }
+        .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: #f4f7f6; }
+        .choices__button { border-left: 1px solid #ddd; }
+
+        .choices[data-type*="select-multiple"]::after {
+            content: ''; position: absolute; right: 15px; top: 50%;
+            transform: translateY(-50%) rotate(45deg);
+            width: 8px; height: 8px;
+            border-right: 2px solid #6c757d; border-bottom: 2px solid #6c757d;
+            pointer-events: none; transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .choices.is-open[data-type*="select-multiple"]::after {
+            transform: translateY(-25%) rotate(225deg); border-color: #00d2ff; 
+        }
+        .choices[data-type*="select-multiple"] .choices__inner { padding-right: 35px !important; }
+
+        /* รองรับหน้าจอมือถือ */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0 !important;
+                padding: 20px;
+                padding-top: 30px;
+            }
+            .profile-card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <!-- ✅ ปุ่มหุบ-กางแถบเมนู (ติดขอบขวา) -->
+        <div class="toggle-btn-sidebar" id="toggleSidebarBtn" title="ซ่อน/แสดง เมนู">
+            <span id="toggleIcon">❮</span>
+        </div>
+
+        <h4>NKTC SYSTEM</h4>
+        
+        <div class="sidebar-profile">
+            <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" alt="Profile" id="sidebarProfileImg">
+            <h6 class="mb-0 fw-bold">{{ firstname }} {{ lastname }}</h6>
+        </div>
+
+        <a href="/dashboard" class="nav-link">🏠 หน้าหลัก</a>
+        <a href="/register" class="nav-link">📝 เพิ่มนักเรียน</a>
+        <a href="/students" class="nav-link">👥 รายชื่อนักเรียน</a>
+        <a href="/report" class="nav-link">📊 รายงานเข้าเรียน</a>
+        <a href="/profile" class="nav-link active">👤 ข้อมูลส่วนตัว</a>
+        <div class="mt-auto">
+            <a href="/logout" class="nav-link text-danger">ออกจากระบบ</a>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="profile-card">
+            
+            <div class="profile-upload-container">
+                <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" 
+                     id="previewImage" class="profile-pic-preview" title="คลิกเพื่อเปลี่ยนรูปโปรไฟล์"
+                     onclick="document.getElementById('fileUpload').click();">
+                <input type="file" id="fileUpload" class="upload-input" accept="image/png, image/jpeg">
+                <p class="text-muted small mt-2">คลิกที่รูปเพื่ออัปโหลด</p>
+            </div>
+
+            <form id="profileForm">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">คำนำหน้า <span class="required">*</span></label>
+                        <select class="form-select" id="prefix" required>
+                            <option value="นาย" {% if prefix == 'นาย' %}selected{% endif %}>นาย</option>
+                            <option value="นาง" {% if prefix == 'นาง' %}selected{% endif %}>นาง</option>
+                            <option value="นางสาว" {% if prefix == 'นางสาว' %}selected{% endif %}>นางสาว</option>
+                            <option value="-" {% if prefix == '-' %}selected{% endif %}>-</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">ชื่อ <span class="required">*</span></label>
+                        <input type="text" class="form-control" id="firstname" value="{{ firstname }}" required>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">นามสกุล <span class="required">*</span></label>
+                        <input type="text" class="form-control" id="lastname" value="{{ lastname }}" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ตำแหน่ง</label>
+                        <select class="form-select" id="position">
+                            <option value="" disabled {% if not position %}selected{% endif %}>เลือกตำแหน่ง</option>
+                            <option value="ผู้อำนวยการ" {% if position == 'ผู้อำนวยการ' %}selected{% endif %}>ผู้อำนวยการ</option>
+                            <option value="รองผู้อำนวยการ" {% if position == 'รองผู้อำนวยการ' %}selected{% endif %}>รองผู้อำนวยการ</option>
+                            <option value="ข้าราชการ" {% if position == 'ข้าราชการ' %}selected{% endif %}>ข้าราชการ</option>
+                            <option value="พนักงานราชการ" {% if position == 'พนักงานราชการ' %}selected{% endif %}>พนักงานราชการ</option>
+                            <option value="ครูอัตราจ้าง" {% if position == 'ครูอัตราจ้าง' %}selected{% endif %}>ครูอัตราจ้าง</option>
+                            <option value="เจ้าหน้าที่ธุรการ" {% if position == 'เจ้าหน้าที่ธุรการ' %}selected{% endif %}>เจ้าหน้าที่ธุรการ</option>
+                            <option value="นักการภารโรง" {% if position == 'นักการภารโรง' %}selected{% endif %}>นักการภารโรง</option>
+                            <option value="ลูกจ้างประจำ" {% if position == 'ลูกจ้างประจำ' %}selected{% endif %}>ลูกจ้างประจำ</option>
+                            <option value="อื่นๆ" {% if position == 'อื่นๆ' %}selected{% endif %}>อื่นๆ</option>
+                            <option value="แอดมิน" {% if position == 'แอดมิน' %}selected{% endif %}>แอดมิน</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">วิทยฐานะ</label>
+                        <select class="form-select" id="academic_standing">
+                            <option value="" disabled {% if not academic_standing %}selected{% endif %}>เลือกวิทยฐานะ</option>
+                            <option value="ไม่มีวิทยฐานะ" {% if academic_standing == 'ไม่มีวิทยฐานะ' %}selected{% endif %}>ไม่มีวิทยฐานะ</option>
+                            <option value="ชำนาญการ" {% if academic_standing == 'ชำนาญการ' %}selected{% endif %}>ชำนาญการ</option>
+                            <option value="ชำนาญการพิเศษ" {% if academic_standing == 'ชำนาญการพิเศษ' %}selected{% endif %}>ชำนาญการพิเศษ</option>
+                            <option value="เชี่ยวชาญ" {% if academic_standing == 'เชี่ยวชาญ' %}selected{% endif %}>เชี่ยวชาญ</option>
+                            <option value="เชี่ยวชาญพิเศษ" {% if academic_standing == 'เชี่ยวชาญพิเศษ' %}selected{% endif %}>เชี่ยวชาญพิเศษ</option>
+                            <option value="-" {% if academic_standing == '-' %}selected{% endif %}>-</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">แผนกวิชา <span class="required">*</span></label>
+                        <select class="form-control" id="department" required>
+                            <option value="" disabled {% if not department %}selected{% endif %}>-- เลือกแผนกวิชา --</option>
+                            {% for d in dept_list %}
+                                <option value="{{ d }}" {% if d == department %}selected{% endif %}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label class="form-label">รหัสบัตรประจำตัวประชาชน</label>
+                        <input type="text" class="form-control" id="id_card" value="{{ id_card }}" maxlength="13">
+                    </div>
+
+                    <div class="col-md-12 mt-4">
+                        <label class="form-label">ครูที่ปรึกษาระดับชั้น</label>
+                        <select class="form-control" id="advising_class" multiple>
+                            {% for cls in class_list %}
+                                <option value="{{ cls }}" {% if cls in teacher_room %}selected{% endif %}>{{ cls }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mt-3">วันเกิด</label>
+                        <input type="date" class="form-control" id="birthdate" value="{{ birthdate }}">
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-save w-100 mb-2">💾 บันทึกข้อมูลการเปลี่ยนแปลง</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script>
+    // ✅ สคริปต์สำหรับกดปุ่มหุบ/กาง แถบเมนูซ้าย
+    const toggleBtn = document.getElementById('toggleSidebarBtn');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+
+    toggleBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        mainContent.classList.toggle('expanded');
+    });
+
+    // เมื่อหน้าเว็บโหลดเสร็จ ถ้ารันบนมือถือ ให้หุบเมนูรอไว้เลยอัตโนมัติ
+    window.addEventListener('DOMContentLoaded', () => {
+        if (window.innerWidth <= 768) {
+            sidebar.classList.add('collapsed');
+            mainContent.classList.add('expanded');
+        }
+    });
+
+    // ตั้งค่า Choices.js
+    const deptSelect = new Choices('#department', { searchEnabled: true, placeholderValue: 'เลือกแผนกวิชา...', searchPlaceholderValue: 'ค้นหาแผนกวิชา', shouldSort: false });
+    const advisingSelect = new Choices('#advising_class', { removeItemButton: true, placeholderValue: 'เลือกห้องเรียน...', searchPlaceholderValue: 'ค้นหาห้องเรียน', shouldSort: false });
+
+    // ✅ อัปเดตห้องเรียนอัตโนมัติเมื่อเปลี่ยนแผนกวิชา
+    const deptSelectElement = document.getElementById('department');
+    if (deptSelectElement) {
+        deptSelectElement.addEventListener('change', function() {
+            const selectedDept = this.value;
+            fetch('/api/classes/' + encodeURIComponent(selectedDept))
+                .then(res => res.json())
+                .then(classList => {
+                    const newChoices = classList.map(cls => ({
+                        value: cls,
+                        label: cls,
+                        selected: false
+                    }));
+                    advisingSelect.clearChoices();
+                    advisingSelect.setChoices(newChoices, 'value', 'label', true);
+                })
+                .catch(err => console.error("Error fetching classes:", err));
+        });
+    }
+
+    // ฟังก์ชันจัดการรูปภาพ (แปลงเป็น Base64)
+    let profileImageBase64 = "{{ profile_img }}"; 
+    
+    document.getElementById('fileUpload').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                // เปลี่ยนรูปโชว์ตรงกลาง และรูปบนเมนูด้านซ้ายทันที
+                document.getElementById('previewImage').src = event.target.result;
+                document.getElementById('sidebarProfileImg').src = event.target.result;
+                // เก็บข้อมูลไฟล์ไว้เตรียมเซฟ
+                profileImageBase64 = event.target.result; 
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    document.getElementById('profileForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const selectedClasses = advisingSelect.getValue(true);
+
+        const data = {
+            prefix: document.getElementById('prefix').value,
+            firstname: document.getElementById('firstname').value,
+            lastname: document.getElementById('lastname').value,
+            position: document.getElementById('position').value,
+            academic_standing: document.getElementById('academic_standing').value,
+            department: document.getElementById('department').value,
+            id_card: document.getElementById('id_card').value,
+            advising_class: selectedClasses, 
+            birthdate: document.getElementById('birthdate').value,
+            profile_img: profileImageBase64 
+        };
+
+        fetch('/api/update_profile', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        }).then(res => res.json()).then(result => {
+            if(result.status === 'success') {
+                alert('บันทึกข้อมูลส่วนตัวและห้องเรียนเรียบร้อยแล้ว!');
+                window.location.href = '/dashboard'; 
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + result.message);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

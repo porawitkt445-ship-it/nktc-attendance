@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายชื่อนักเรียนทั้งหมด - NKTC SYSTEM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f4f7f6; margin: 0; display: flex; overflow-x: hidden; }
+
+        /* แถบเมนูซ้าย */
+        .sidebar { 
+            width: 280px; background-color: #2b2946; color: white; height: 100vh; position: fixed; 
+            padding: 25px; display: flex; flex-direction: column; top: 0; left: 0; 
+            box-shadow: 4px 0 15px rgba(0,0,0,0.15); z-index: 1000;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .sidebar.collapsed { transform: translateX(-100%); }
+
+        /* ✅ ปุ่มเปิด-ปิด ที่ติดกับขอบ Sidebar ดีไซน์ใหม่ */
+        .toggle-btn-sidebar {
+            position: absolute; top: 30px; right: -42px; width: 42px; height: 45px;
+            background-color: #2b2946; color: white; border-radius: 0 12px 12px 0;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            box-shadow: 4px 2px 10px rgba(0,0,0,0.2); transition: background-color 0.3s;
+        }
+        .toggle-btn-sidebar:hover { background-color: #3f3c63; }
+        #toggleIcon { font-size: 1.1rem; transition: transform 0.4s ease; }
+        .sidebar.collapsed #toggleIcon { transform: rotate(180deg); }
+
+        .sidebar h4 { color: #00d2ff; font-weight: 600; margin-bottom: 25px; text-align: center; }
+        .sidebar-profile { text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #444075; }
+        .sidebar-profile img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #00d2ff; margin-bottom: 10px; }
+        .nav-link { color: #b0b0c0; padding: 14px; text-decoration: none; border-radius: 10px; margin-bottom: 8px; transition: 0.3s; display: block; }
+        .nav-link:hover, .nav-link.active { background-color: #444075; color: white; }
+
+        /* พื้นที่แสดงผลขวา */
+        .main-content { 
+            margin-left: 280px; padding: 40px; width: 100%; display: flex; 
+            justify-content: center; align-items: flex-start; min-height: 100vh; 
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .main-content.expanded { margin-left: 0; }
+        
+        .report-card { background: white; border-radius: 20px; padding: 35px; width: 100%; max-width: 1200px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-top: 8px solid #00d2ff;}
+        .table-container { width: 100%; overflow-x: auto; border-radius: 8px; }
+        .table { width: 100%; border-collapse: collapse !important; margin-top: 10px; min-width: 1000px; }
+        .table-header th { background-color: #e9ecef !important; color: #000 !important; border: 1px solid #ccc !important; padding: 12px !important; text-align: center; white-space: nowrap; font-weight: 600; }
+        td { border: 1px solid #ccc !important; padding: 12px !important; text-align: center; vertical-align: middle; white-space: nowrap; color: #000 !important; background-color: #fff !important; }
+        
+        .btn-action { padding: 5px 12px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 6px; transition: 0.2s; }
+        
+        /* ปรับสี Modal ให้เข้ากับตีม */
+        .modal-header { background-color: #2b2946; color: white; border-radius: 8px 8px 0 0; }
+        .btn-close { filter: invert(1); }
+
+        /* รองรับหน้าจอมือถือ */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0 !important;
+                padding: 20px;
+                padding-top: 30px;
+            }
+            .report-card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <!-- ✅ ปุ่มหุบ-กางแถบเมนู (ติดขอบขวา) -->
+        <div class="toggle-btn-sidebar" id="toggleSidebarBtn" title="ซ่อน/แสดง เมนู">
+            <span id="toggleIcon">❮</span>
+        </div>
+
+        <h4>NKTC SYSTEM</h4>
+        <div class="sidebar-profile">
+            <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" alt="Profile">
+            <h6 class="mb-0 fw-bold">{{ teacher_name }}</h6>
+        </div>
+
+        <a href="/dashboard" class="nav-link">🏠 หน้าหลัก</a>
+        <a href="/register" class="nav-link">📝 เพิ่มนักเรียน</a>
+        <a href="/students" class="nav-link active">👥 รายชื่อนักเรียน</a>
+        <a href="/report" class="nav-link">📊 รายงานเข้าเรียน</a>
+        <a href="/profile" class="nav-link">👤 ข้อมูลส่วนตัว</a>
+        <div class="mt-auto">
+            <a href="/logout" class="nav-link text-danger">ออกจากระบบ</a>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="report-card">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div>
+                    <h4 class="fw-bold mb-1" style="color: #000;">👥 ข้อมูลนักเรียนทั้งหมด</h4>
+                    <span class="text-muted">แผนก: <strong class="text-primary">{{ department }}</strong></span>
+                </div>
+            </div>
+
+            <div class="table-container shadow-sm border border-light">
+                <table class="table table-bordered table-hover mb-0">
+                    <thead class="table-header">
+                        <tr>
+                            <th>ลำดับ</th>
+                            <th>รหัสนักเรียน</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>ชั้นเรียน/ห้อง</th>
+                            <th>เบอร์โทร</th>
+                            <th>ที่อยู่</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTableBody">
+                        <tr><td colspan="8" class="text-center text-muted py-4">กำลังโหลดข้อมูล...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ ป๊อปอัป (Modal) สำหรับแก้ไขข้อมูลนักเรียน -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">✏️ แก้ไขข้อมูลนักเรียน</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="editForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">รหัสนักเรียน (แก้ไขไม่ได้)</label>
+                                <input type="text" class="form-control bg-light" id="edit_student_id" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">ชื่อ-นามสกุล <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_name" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">ชั้นเรียน/ห้อง <span class="text-danger">*</span></label>
+                                <select class="form-select" id="edit_class_group" required>
+                                    {% for cls in class_list %}
+                                        <option value="{{ cls }}">{{ cls }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">เบอร์โทรศัพท์</label>
+                                <input type="tel" class="form-control" id="edit_phone">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">สถานะนักเรียน</label>
+                                <select class="form-select" id="edit_status">
+                                    <option value="กำลังศึกษา">กำลังศึกษา</option>
+                                    <option value="สำเร็จการศึกษา">สำเร็จการศึกษา</option>
+                                    <option value="พ้นสภาพ">พ้นสภาพ</option>
+                                </select>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label fw-bold">ที่อยู่</label>
+                                <textarea class="form-control" id="edit_address" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">💾 บันทึกการแก้ไข</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ✅ สคริปต์ควบคุมการหุบ/กาง แถบเมนูซ้าย
+    const toggleBtn = document.getElementById('toggleSidebarBtn');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+
+    toggleBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        mainContent.classList.toggle('expanded');
+    });
+
+    // เมื่อหน้าเว็บโหลดเสร็จ ถ้ารันบนมือถือ ให้หุบเมนูรอไว้เลยอัตโนมัติ
+    window.addEventListener('DOMContentLoaded', () => {
+        if (window.innerWidth <= 768) {
+            sidebar.classList.add('collapsed');
+            mainContent.classList.add('expanded');
+        }
+    });
+
+    const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+    function loadStudents() {
+        const tbody = document.getElementById('studentTableBody');
+        
+        fetch('/api/students', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => {
+            tbody.innerHTML = '';
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">ยังไม่มีข้อมูลนักเรียน</td></tr>`;
+                return;
+            }
+
+            data.forEach((student, i) => {
+                const phoneDisplay = student.phone && student.phone !== "-" ? student.phone : '<span class="text-muted">-</span>';
+                const addressDisplay = student.address && student.address !== "-" ? student.address : '<span class="text-muted">-</span>';
+                
+                // ตกแต่งป้ายสถานะ
+                let statusBadge = '<span class="badge bg-secondary">ไม่ระบุ</span>';
+                if(student.status === "กำลังศึกษา") statusBadge = '<span class="badge bg-success">กำลังศึกษา</span>';
+                else if(student.status === "สำเร็จการศึกษา") statusBadge = '<span class="badge bg-primary">สำเร็จการศึกษา</span>';
+                else if(student.status === "พ้นสภาพ") statusBadge = '<span class="badge bg-danger">พ้นสภาพ</span>';
+                else if(student.status && student.status !== "-") statusBadge = `<span class="badge bg-info">${student.status}</span>`;
+
+                const studentJson = encodeURIComponent(JSON.stringify(student));
+
+                tbody.innerHTML += `<tr>
+                    <td>${i + 1}</td>
+                    <td class="fw-bold">${student.student_id}</td>
+                    <td class="text-start">${student.name}</td>
+                    <td>${student.class_group}</td>
+                    <td>${phoneDisplay}</td>
+                    <td class="text-start" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis;">${addressDisplay}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-warning btn-action shadow-sm me-1 text-dark" onclick="openEditModal('${studentJson}')">แก้ไข</button>
+                        <button class="btn btn-danger btn-action shadow-sm" onclick="deleteStudent('${student.student_id}', '${student.name}')">ลบ</button>
+                    </td>
+                </tr>`;
+            });
+        });
+    }
+
+    function openEditModal(studentJsonString) {
+        const student = JSON.parse(decodeURIComponent(studentJsonString));
+        
+        document.getElementById('edit_student_id').value = student.student_id;
+        document.getElementById('edit_name').value = student.name;
+        document.getElementById('edit_class_group').value = student.class_group;
+        document.getElementById('edit_phone').value = student.phone !== "-" ? student.phone : '';
+        document.getElementById('edit_address').value = student.address !== "-" ? student.address : '';
+        
+        const statusSelect = document.getElementById('edit_status');
+        if (student.status && student.status !== "-") {
+            statusSelect.value = student.status;
+        } else {
+            statusSelect.value = "กำลังศึกษา";
+        }
+        
+        editModal.show();
+    }
+
+    document.getElementById('editForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const data = {
+            student_id: document.getElementById('edit_student_id').value,
+            name: document.getElementById('edit_name').value,
+            class_group: document.getElementById('edit_class_group').value,
+            phone: document.getElementById('edit_phone').value,
+            address: document.getElementById('edit_address').value,
+            status: document.getElementById('edit_status').value
+        };
+
+        fetch('/api/edit-student', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(res => {
+            if(res.status === 'success') {
+                alert('อัปเดตข้อมูลนักเรียนเรียบร้อยแล้ว!');
+                editModal.hide();
+                loadStudents(); 
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + res.message);
+            }
+        });
+    });
+
+    function deleteStudent(studentId, studentName) {
+        if(confirm(`⚠️ คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลของ:\n"${studentName}" (รหัส: ${studentId})\n\n*การลบนี้จะลบทั้งประวัติเข้าเรียนและรูปภาพด้วย`)) {
+            fetch('/api/delete-student/' + studentId, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    loadStudents();
+                } else {
+                    alert('เกิดข้อผิดพลาดในการลบข้อมูล');
+                }
+            });
+        }
+    }
+
+    loadStudents();
+</script>
+</body>
+</html>
