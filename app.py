@@ -2,6 +2,12 @@ from flask import Flask, render_template, request, jsonify, Response, session, r
 import sqlite3, cv2, os, numpy as np, base64, pickle, time
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
+from supabase import create_client
+
+# ตั้งค่าการเชื่อมต่อ Supabase
+SUPABASE_URL = "https://rznilhmtsoacewnukcjd.supabase.co"
+SUPABASE_KEY = "sb_publishable_ihPAgLLBLlOWFL4qqzJPQg_9FFXFLg8"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ดึงไฟล์ Blueprint เข้ามาลิงก์กัน
 from departments import departments_bp, get_class_list
@@ -16,6 +22,23 @@ app.register_blueprint(teachers_bp)
 
 UPLOAD_FOLDER = 'img'
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
+
+# ฟังก์ชันดาวน์โหลดรูปจาก Supabase Storage มาไว้ที่เซิร์ฟเวอร์ตอนเปิดระบบ
+def download_images_from_supabase():
+    try:
+        files = supabase.storage.from_("student-images").list()
+        if files:
+            for file in files:
+                file_name = file.get('name')
+                if file_name and file_name.lower().endswith((".jpg", ".png")):
+                    local_path = os.path.join(UPLOAD_FOLDER, file_name)
+                    if not os.path.exists(local_path):
+                        res = supabase.storage.from_("student-images").download(file_name)
+                        with open(local_path, "wb") as f:
+                            f.write(res)
+            print("✅ โหลดรูปภาพจาก Supabase Storage สำเร็จ!")
+    except Exception as e:
+        print("❌ ไม่สามารถโหลดรูปจาก Supabase ได้:", e)
 
 # ตัวแปรระดับ Global สำหรับจัดการการสลับกล้องอัตโนมัติ
 LAST_MOBILE_SEEN = 0.0
@@ -45,17 +68,16 @@ def init_db():
     
     conn.execute('''CREATE TABLE IF NOT EXISTS attendance_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     
-    # ✅ เพิ่มคอลัมน์ status ในตาราง attendance_logs รองรับสถานะต่างๆ
     try: conn.execute("ALTER TABLE attendance_logs ADD COLUMN status TEXT DEFAULT 'มาเรียน'")
     except: pass
     
     conn.commit()
     conn.close()
     
-    # เรียกใช้งานสร้างตารางครูจากไฟล์ teachers.py
     init_teachers_db()
 
 init_db()
+download_images_from_supabase()
 
 def connect_db(): return sqlite3.connect("attendance.db")
 
@@ -75,18 +97,19 @@ load_ai_model()
 
 def train_ai_auto():
     label_ids, y_labels, x_train, current_id = {}, [], [], 0
-    for file in os.listdir(UPLOAD_FOLDER):
-        if file.lower().endswith((".jpg", ".png")):
-            student_id = os.path.splitext(file)[0]
-            if student_id not in label_ids.values(): 
-                label_ids[current_id] = student_id
-                current_id += 1
-            id_ = [k for k, v in label_ids.items() if v == student_id][0]
-            img = Image.open(os.path.join(UPLOAD_FOLDER, file)).convert("L")
-            faces = face_cascade.detectMultiScale(np.array(img, "uint8"), 1.1, 4)
-            for (x, y, w, h) in faces: 
-                x_train.append(np.array(img, "uint8")[y:y+h, x:x+w])
-                y_labels.append(id_)
+    if os.path.exists(UPLOAD_FOLDER):
+        for file in os.listdir(UPLOAD_FOLDER):
+            if file.lower().endswith((".jpg", ".png")):
+                student_id = os.path.splitext(file)[0]
+                if student_id not in label_ids.values(): 
+                    label_ids[current_id] = student_id
+                    current_id += 1
+                id_ = [k for k, v in label_ids.items() if v == student_id][0]
+                img = Image.open(os.path.join(UPLOAD_FOLDER, file)).convert("L")
+                faces = face_cascade.detectMultiScale(np.array(img, "uint8"), 1.1, 4)
+                for (x, y, w, h) in faces: 
+                    x_train.append(np.array(img, "uint8")[y:y+h, x:x+w])
+                    y_labels.append(id_)
     if x_train:
         recognizer.train(x_train, np.array(y_labels))
         recognizer.save("trainer.yml")
@@ -104,7 +127,6 @@ def log_attendance(student_id):
             
     try:
         conn = connect_db()
-        # เปลี่ยน +7 hours เพื่อให้ตรงกับเวลาไทย
         cur = conn.execute("SELECT COUNT(*) FROM attendance_logs WHERE student_id = ? AND date(timestamp, '+7 hours') = date('now', '+7 hours')", (student_id,))
         if cur.fetchone()[0] == 0:
             conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
@@ -262,14 +284,30 @@ def register():
     conn.close()
     
     if 'image' in data and data['image']:
-        with open(f"img/{data['student_id']}.jpg", "wb") as f: 
-            f.write(base64.b64decode(data['image'].split(",")[1]))
+        file_name = f"{data['student_id']}.jpg"
+        file_path = os.path.join(UPLOAD_FOLDER, file_name)
+        image_bytes = base64.b64decode(data['image'].split(",")[1])
+        
+        # บันทึกลงเครื่องท้องถิ่น
+        with open(file_path, "wb") as f: 
+            f.write(image_bytes)
+            
+        # อัปโหลดรูปภาพขึ้น Supabase Storage (ถังชื่อ student-images)
+        try:
+            supabase.storage.from_("student-images").upload(
+                path=file_name,
+                file=image_bytes,
+                file_options={"upsert": "true"}
+            )
+            print("✅ อัปโหลดรูปลง Supabase Storage สำเร็จ!")
+        except Exception as e:
+            print("❌ อัปโหลดรูปลง Supabase ไม่สำเร็จ:", e)
+            
         train_ai_auto()
         load_ai_model()
         
     return jsonify({"status": "success"})
 
-# ✅ API สำหรับบันทึกเช็คชื่อย้อนหลัง (แก้ไขเรื่องเวลาคลาดเคลื่อน 7 ชม.)
 @app.route('/api/manual-checkin', methods=['POST'])
 def manual_checkin():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -284,12 +322,10 @@ def manual_checkin():
         
     conn = connect_db()
     try:
-        # แปลงเวลาท้องถิ่นเป็น UTC โดยหักออก 7 ชั่วโมง เพื่อให้เวลาตรงกันเมื่อแสดงผลด้วย +7 hours
         dt_local = datetime.strptime(f"{check_date} {check_time}:00", "%Y-%m-%d %H:%M:%S")
         dt_utc = dt_local - timedelta(hours=7)
         full_timestamp = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
         
-        # เปลี่ยนเป็น +7 hours
         cur = conn.execute("SELECT id FROM attendance_logs WHERE student_id = ? AND date(timestamp, '+7 hours') = ?", (student_id, check_date))
         row = cur.fetchone()
         
@@ -314,7 +350,6 @@ def get_logs():
     selected_date = request.args.get('date')
     conn = connect_db()
     
-    # เปลี่ยนเป็น +7 hours ทั้งหมด
     date_condition = f"date(l.timestamp, '+7 hours') = '{selected_date}'" if selected_date else "date(l.timestamp, '+7 hours') = date('now', '+7 hours')"
     
     if dept == 'ทุกแผนก':
@@ -346,7 +381,6 @@ def get_absent_students():
     selected_date = request.args.get('date')
     conn = connect_db()
     
-    # เปลี่ยนเป็น +7 hours
     date_condition = f"date(timestamp, '+7 hours') = '{selected_date}'" if selected_date else "date(timestamp, '+7 hours') = date('now', '+7 hours')"
     
     if dept == 'ทุกแผนก':
@@ -372,8 +406,17 @@ def delete_student(student_id):
         conn.execute("DELETE FROM students WHERE student_id = ?", (student_id,))
         conn.execute("DELETE FROM attendance_logs WHERE student_id = ?", (student_id,))
         conn.commit(); conn.close()
+        
+        # ลบไฟล์ภาพในเครื่อง
         img_path = os.path.join(UPLOAD_FOLDER, f"{student_id}.jpg")
         if os.path.exists(img_path): os.remove(img_path)
+        
+        # ลบไฟล์ภาพออกจาก Supabase Storage
+        try:
+            supabase.storage.from_("student-images").remove([f"{student_id}.jpg"])
+        except:
+            pass
+            
         if student_id in scanned_students: del scanned_students[student_id]
         train_ai_auto(); load_ai_model()
         return jsonify({"status": "success"})
@@ -465,7 +508,6 @@ def dashboard_stats():
         if dept == 'ทุกแผนก':
             total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
             
-            # เปลี่ยนเป็น +7 hours
             present = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
@@ -486,7 +528,6 @@ def dashboard_stats():
         else:
             total = conn.execute("SELECT COUNT(*) FROM students WHERE department = ?", (dept,)).fetchone()[0]
             
-            # เปลี่ยนเป็น +7 hours
             present = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
