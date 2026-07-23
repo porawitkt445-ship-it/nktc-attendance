@@ -160,7 +160,7 @@
                 </div>
             </div>
 
-            <!-- ✅ จัดระเบียบ Bootstrap Grid (มือถือแสดง 3 ช่องต่อแถว, คอมแสดง 5 ช่องเรียงยาว) -->
+            <!-- ✅ จัดระเบียบ Bootstrap Grid -->
             <div class="row g-2">
                 <div class="col-4 col-md">
                     <div class="stat-card">
@@ -194,9 +194,16 @@
                 </div>
             </div>
 
-            <!-- ✅ การ์ดแสดงกราฟโดนัท -->
+            <!-- ✅ การ์ดแสดงกราฟโดนัท พร้อมเพิ่มปุ่มสลับช่วงเวลา (รายวัน / รายสัปดาห์ / รายเดือน) -->
             <div class="chart-card">
-                <h5 class="fw-bold mb-4" style="color: #2b2946;">📈 สัดส่วนการเข้าเรียนประจำวัน</h5>
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
+                    <h5 class="fw-bold mb-0" id="chart-title" style="color: #2b2946;">📈 สัดส่วนการเข้าเรียนประจำวัน</h5>
+                    <div class="btn-group" role="group" aria-label="Period Filter">
+                        <button type="button" class="btn btn-outline-primary btn-sm active" id="btn-day" onclick="changePeriod('day')">รายวัน</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-week" onclick="changePeriod('week')">รายสัปดาห์</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-month" onclick="changePeriod('month')">รายเดือน</button>
+                    </div>
+                </div>
                 <div class="chart-container">
                     <canvas id="attendanceChart"></canvas>
                 </div>
@@ -209,6 +216,8 @@
         const toggleBtn = document.getElementById('toggleSidebarBtn');
         const sidebar = document.getElementById('sidebar');
         const mainContent = document.getElementById('mainContent');
+
+        let currentPeriod = 'day'; // ค่าเริ่มต้นเป็นรายวัน
 
         toggleBtn.addEventListener('click', function() {
             sidebar.classList.toggle('collapsed');
@@ -255,8 +264,30 @@
             }
         });
 
+        // ฟังก์ชันสลับปุ่มช่วงเวลา
+        function changePeriod(period) {
+            currentPeriod = period;
+            
+            // สลับสถานะปุ่ม Active
+            document.getElementById('btn-day').classList.remove('active');
+            document.getElementById('btn-week').classList.remove('active');
+            document.getElementById('btn-month').classList.remove('active');
+            document.getElementById(`btn-${period}`).classList.add('active');
+
+            // เปลี่ยนข้อความหัวข้อกราฟตามปุ่ม
+            const titles = {
+                'day': '📈 สัดส่วนการเข้าเรียนประจำวัน',
+                'week': '📈 สัดส่วนการเข้าเรียนรายสัปดาห์',
+                'month': '📈 สัดส่วนการเข้าเรียนรายเดือน'
+            };
+            document.getElementById('chart-title').innerText = titles[period];
+
+            // โหลดข้อมูลใหม่ทันที
+            loadDashboardStats();
+        }
+
         function loadDashboardStats() {
-            fetch('/api/dashboard-stats')
+            fetch(`/api/dashboard-stats?period=${currentPeriod}`)
             .then(r => r.json())
             .then(data => {
                 if (data.total !== undefined) {
