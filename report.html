@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายงานการเข้าเรียน - NKTC SYSTEM</title>
+    
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* === Global & Base === */
+        body { 
+            font-family: 'Kanit', sans-serif; 
+            background-color: #f4f7f6; 
+            margin: 0; 
+            display: flex; 
+            overflow-x: hidden; 
+        }
+
+        /* === Sidebar === */
+        .sidebar { 
+            width: 280px; 
+            background-color: #2b2946; 
+            color: white; 
+            height: 100vh; 
+            position: fixed; 
+            padding: 25px; 
+            display: flex; 
+            flex-direction: column; 
+            top: 0; 
+            left: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.15); 
+            z-index: 1000;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .sidebar.collapsed { transform: translateX(-100%); }
+
+        .toggle-btn-sidebar {
+            position: absolute; 
+            top: 30px; 
+            right: -42px; 
+            width: 42px; 
+            height: 45px;
+            background-color: #2b2946; 
+            color: white; 
+            border-radius: 0 12px 12px 0;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer;
+            box-shadow: 4px 2px 10px rgba(0,0,0,0.2); 
+            transition: background-color 0.3s;
+        }
+        .toggle-btn-sidebar:hover { background-color: #3f3c63; }
+        
+        #toggleIcon { font-size: 1.1rem; transition: transform 0.4s ease; }
+        .sidebar.collapsed #toggleIcon { transform: rotate(180deg); }
+
+        .sidebar h4 { color: #00d2ff; font-weight: 600; margin-bottom: 25px; text-align: center; }
+        
+        .sidebar-profile { text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #444075; }
+        .sidebar-profile img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #00d2ff; margin-bottom: 10px; }
+
+        .nav-link { 
+            color: #b0b0c0; 
+            padding: 14px; 
+            text-decoration: none; 
+            border-radius: 10px; 
+            margin-bottom: 8px; 
+            transition: 0.3s; 
+            display: block;
+        }
+        .nav-link:hover, .nav-link.active { background-color: #444075; color: white; }
+
+        /* === Main Content === */
+        .main-content { 
+            margin-left: 280px; 
+            padding: 40px; 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start; 
+            min-height: 100vh; 
+            transition: margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .main-content.expanded { margin-left: 0; }
+        
+        .report-card { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 35px; 
+            width: 100%; 
+            max-width: 1200px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
+            border-top: 8px solid #00d2ff;
+        }
+
+        /* === Table Styles === */
+        .table-container { width: 100%; overflow-x: auto; border-radius: 8px; }
+        .table { width: 100%; border-collapse: collapse !important; margin-top: 10px; min-width: 700px; }
+        
+        .table-header th { 
+            background-color: #e9ecef !important; 
+            color: #000 !important; 
+            border: 1px solid #ccc !important; 
+            padding: 12px !important; 
+            text-align: center; 
+            white-space: nowrap; 
+            font-weight: 600;
+        }
+        
+        td { 
+            border: 1px solid #ccc !important; 
+            padding: 12px !important; 
+            text-align: center; 
+            vertical-align: middle; 
+            white-space: nowrap; 
+            color: #000 !important; 
+            background-color: #fff !important;
+        }
+
+        /* === Buttons & Inputs === */
+        .btn-manual-custom {
+            background: linear-gradient(135deg, #1a6dff, #0052cc);
+            color: white; 
+            font-weight: 600; 
+            border-radius: 12px; 
+            padding: 8px 18px;
+            border: none; 
+            box-shadow: 0 4px 15px rgba(26, 109, 255, 0.3); 
+            transition: all 0.2s ease;
+        }
+        .btn-manual-custom:hover {
+            background: linear-gradient(135deg, #0e56d4, #0040a8);
+            color: white; 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(26, 109, 255, 0.4);
+        }
+
+        #btnShowAbsent, #btnSwitchMode { border-radius: 10px; font-weight: 600; cursor: pointer; padding: 8px 18px; transition: 0.3s; }
+        .btn-del { padding: 4px 12px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 6px; }
+
+        .search-box {
+            border-radius: 10px;
+            border: 1px solid #ced4da;
+            padding: 6px 12px 6px 35px;
+            width: 250px; 
+            font-size: 0.9rem;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="gray" class="bi bi-search" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>') no-repeat 10px center;
+            background-color: #fff;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #00d2ff;
+            box-shadow: 0 0 5px rgba(0, 210, 255, 0.3);
+        }
+
+        /* === Modal Styles === */
+        .status-card-option {
+            border: 2px solid #e9ecef; 
+            border-radius: 12px; 
+            padding: 10px 14px;
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            background-color: #fafbfc;
+            display: flex; 
+            align-items: center;
+        }
+        .status-card-option:hover { border-color: #b0c4de; background-color: #f1f4f9; }
+        .status-card-option label { color: #000 !important; font-weight: 600; cursor: pointer; }
+        .form-check-input:checked { background-color: #1a6dff; border-color: #1a6dff; }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            .main-content { margin-left: 0 !important; padding: 15px; padding-top: 30px; }
+            .report-card { padding: 20px; }
+            .search-box { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Section -->
+    <div class="sidebar" id="sidebar">
+        <div class="toggle-btn-sidebar" id="toggleSidebarBtn" title="ซ่อน/แสดง เมนู">
+            <span id="toggleIcon">❮</span>
+        </div>
+
+        <h4>NKTC SYSTEM</h4>
+        
+        <div class="sidebar-profile">
+            <img src="{% if profile_img %}{{ profile_img }}{% else %}https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png{% endif %}" alt="Profile">
+            <h6 class="mb-0 fw-bold">{{ teacher_name }}</h6>
+        </div>
+
+        <nav>
+            <a href="/dashboard" class="nav-link">🏠 หน้าหลัก</a>
+            <a href="/register" class="nav-link">📝 เพิ่มนักเรียน</a>
+            <a href="/students" class="nav-link">👥 รายชื่อนักเรียน</a>
+            <a href="/report" class="nav-link active">📊 รายงานเข้าเรียน</a>
+            <a href="/profile" class="nav-link">👤 ข้อมูลส่วนตัว</a>
+        </nav>
+        
+        <div class="mt-auto">
+            <a href="/logout" class="nav-link text-danger">ออกจากระบบ</a>
+        </div>
+    </div>
+
+    <!-- Main Content Section -->
+    <div class="main-content" id="mainContent">
+        <div class="report-card">
+            
+            <!-- Header & Controls -->
+            <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center mb-4 gap-3">
+                
+                <!-- Title (✅ แก้ไม่ให้ตกบรรทัดด้วย flex-shrink-0 และ text-nowrap) -->
+                <div class="flex-shrink-0">
+                    <h4 class="fw-bold mb-1 text-nowrap" id="page-title" style="color: #000;">📊 รายงานเข้าเรียนรายวัน</h4>
+                    <span class="text-muted d-block text-nowrap">ข้อมูลเฉพาะแผนก: <strong class="text-primary"><span id="deptName">{{ department }}</span></strong></span>
+                </div>
+                
+                <!-- Toolbars (Search, Filters, Buttons) -->
+                <div class="d-flex align-items-center flex-wrap gap-2 justify-content-start justify-content-xl-end w-100">
+                    
+                    <!-- Search Input -->
+                    <input type="text" id="searchInput" class="search-box" placeholder="ค้นหารหัส หรือ ชื่อ..." onkeyup="filterTable()">
+
+                    <!-- Date/Month Picker Container -->
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Daily Mode Picker -->
+                        <div id="date-picker-group" class="d-flex align-items-center gap-2">
+                            <label for="reportDate" class="fw-bold small text-secondary d-none d-sm-block mb-0 text-nowrap">เลือกวันที่:</label>
+                            <input type="date" id="reportDate" class="form-control form-control-sm" style="width: 140px; border-radius: 8px; font-weight: 600;">
+                        </div>
+                        
+                        <!-- Summary Mode Picker -->
+                        <div id="month-picker-group" class="d-flex align-items-center gap-2" style="display: none !important;">
+                            <label for="reportMonth" class="fw-bold small text-secondary d-none d-sm-block mb-0 text-nowrap">เลือกเดือน:</label>
+                            <input type="month" id="reportMonth" class="form-control form-control-sm" style="width: 140px; border-radius: 8px; font-weight: 600;">
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <button id="btnSwitchMode" class="btn btn-outline-primary btn-sm shadow-sm text-nowrap" onclick="switchReportMode()">
+                        🔄 ดูสรุปยอดรายบุคคล
+                    </button>
+
+                    <button id="btnManualModal" class="btn-manual-custom d-flex align-items-center gap-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#manualModal">
+                        <span>📝</span> เช็คชื่อ
+                    </button>
+                    
+                    <button id="btnShowAbsent" class="btn btn-outline-danger btn-sm shadow-sm text-nowrap" onclick="toggleAbsentView()">
+                        ❌ ดูคนขาดเรียน
+                    </button>
+                </div>
+            </div>
+
+            <!-- Daily Report Table -->
+            <div class="table-container shadow-sm border border-light" id="daily-table-container">
+                <table class="table table-bordered table-hover mb-0">
+                    <thead class="table-header">
+                        <tr>
+                            <th>ลำดับ</th>
+                            <th>รหัสนักเรียน</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>ชั้นเรียน/ห้อง</th>
+                            <th>เวลา</th>
+                            <th>สถานะ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Summary Report Table -->
+            <div class="table-container shadow-sm border border-light" id="summary-table-container" style="display: none;">
+                <table class="table table-bordered table-hover mb-0">
+                    <thead class="table-header">
+                        <tr>
+                            <th>ลำดับ</th>
+                            <th>รหัสนักเรียน</th>
+                            <th>ชื่อ-นามสกุล</th>
+                            <th>ชั้นเรียน/ห้อง</th>
+                            <th class="text-success">✅ มาเรียน</th>
+                            <th class="text-info">ℹ️ ลา</th>
+                            <th class="text-danger">❌ ขาด</th>
+                            <th class="text-warning">⚠️ สาย</th>
+                            <th class="text-primary">💼 ฝึกงาน</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Check-in Modal -->
+    <div class="modal fade" id="manualModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 20px 40px rgba(0,0,0,0.15); overflow: hidden;">
+                
+                <div class="modal-header text-white px-4 py-3" style="background: linear-gradient(135deg, #2b2946, #3f3c63);">
+                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2 fs-6 fs-md-5">
+                        <span>📝</span> เช็คชื่อนักเรียนด้วยตนเอง
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <!-- Student Selection -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-secondary small">เลือกนักเรียนที่ต้องการเช็คชื่อ:</label>
+                        <select id="modalStudentSelect" class="form-select py-2" style="border-radius: 10px; border-color: #ced4da; color: #000; font-size: 0.95rem;">
+                            <option value="">กำลังโหลดรายชื่อ...</option>
+                        </select>
+                    </div>
+
+                    <!-- Date & Time Selection -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold text-secondary small">วันที่เช็คชื่อ:</label>
+                            <input type="date" id="modalDate" class="form-control py-2" style="border-radius: 10px; color: #000; font-weight: 500;">
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label fw-semibold text-secondary small">เวลา (24 ชั่วโมง):</label>
+                            <input type="text" id="modalTime" class="form-control py-2" placeholder="08:30" maxlength="5" style="border-radius: 10px; color: #000; font-weight: 500;" value="08:30">
+                        </div>
+                    </div>
+                    
+                    <!-- Status Selection -->
+                    <div class="mb-1">
+                        <label class="form-label fw-semibold text-secondary small mb-2">สถานะการเข้าเรียน:</label>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="status-card-option" onclick="document.getElementById('statusPresent').click()">
+                                <div class="form-check m-0 d-flex align-items-center gap-2 w-100 cursor-pointer">
+                                    <input class="form-check-input m-0" type="radio" name="modalStatus" id="statusPresent" value="มาเรียน" checked>
+                                    <label class="form-check-label w-100 mb-0" for="statusPresent">มาเรียน</label>
+                                </div>
+                            </div>
+                            <div class="status-card-option" onclick="document.getElementById('statusLate').click()">
+                                <div class="form-check m-0 d-flex align-items-center gap-2 w-100 cursor-pointer">
+                                    <input class="form-check-input m-0" type="radio" name="modalStatus" id="statusLate" value="สาย">
+                                    <label class="form-check-label w-100 mb-0" for="statusLate">สาย</label>
+                                </div>
+                            </div>
+                            <div class="status-card-option" onclick="document.getElementById('statusLeave').click()">
+                                <div class="form-check m-0 d-flex align-items-center gap-2 w-100 cursor-pointer">
+                                    <input class="form-check-input m-0" type="radio" name="modalStatus" id="statusLeave" value="ลา">
+                                    <label class="form-check-label w-100 mb-0" for="statusLeave">ลา</label>
+                                </div>
+                            </div>
+                            <div class="status-card-option" onclick="document.getElementById('statusAbsent').click()">
+                                <div class="form-check m-0 d-flex align-items-center gap-2 w-100 cursor-pointer">
+                                    <input class="form-check-input m-0" type="radio" name="modalStatus" id="statusAbsent" value="ขาด">
+                                    <label class="form-check-label w-100 mb-0" for="statusAbsent">ไม่เข้าร่วม / ขาด</label>
+                                </div>
+                            </div>
+                            <div class="status-card-option" onclick="document.getElementById('statusIntern').click()">
+                                <div class="form-check m-0 d-flex align-items-center gap-2 w-100 cursor-pointer">
+                                    <input class="form-check-input m-0" type="radio" name="modalStatus" id="statusIntern" value="ฝึกงาน">
+                                    <label class="form-check-label w-100 mb-0" for="statusIntern">ฝึกงาน</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer px-4 py-3 bg-light d-flex justify-content-end gap-2" style="border-top: none;">
+                    <button type="button" class="btn btn-outline-secondary px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 500;">ยกเลิก</button>
+                    <button type="button" class="btn btn-success px-4 py-2 d-flex align-items-center gap-2 shadow-sm" onclick="submitManualCheckin()" style="border-radius: 10px; background-color: #198754; font-weight: 600;">
+                        <span>💾</span> บันทึก
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // --- Sidebar Toggle Logic ---
+        const toggleBtn = document.getElementById('toggleSidebarBtn');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+
+        toggleBtn.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        });
+
+        // --- App State & Initialization ---
+        let currentMode = 'daily'; 
+        let showAbsent = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('reportDate').value = today;
+            document.getElementById('modalDate').value = today;
+            document.getElementById('reportMonth').value = today.slice(0, 7);
+            
+            loadData(showAbsent);
+            loadStudentsDropdown();
+        });
+
+        // --- Search/Filter Logic ---
+        function filterTable() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const targetTbodyId = currentMode === 'daily' ? 'reportTableBody' : 'summaryTableBody';
+            const trs = document.getElementById(targetTbodyId).getElementsByTagName('tr');
+
+            for (let i = 0; i < trs.length; i++) {
+                let tr = trs[i];
+                if (tr.getElementsByTagName('td').length === 1) continue; // Skip "No Data" row
+
+                let idCell = tr.getElementsByTagName('td')[1];
+                let nameCell = tr.getElementsByTagName('td')[2];
+
+                if (idCell || nameCell) {
+                    let idText = idCell.textContent || idCell.innerText;
+                    let nameText = nameCell.textContent || nameCell.innerText;
+
+                    if (idText.toLowerCase().includes(query) || nameText.toLowerCase().includes(query)) {
+                        tr.style.display = ""; 
+                    } else {
+                        tr.style.display = "none";
+                    }
+                }
+            }
+        }
+
+        // --- Mode Switching Logic (Daily vs Summary) ---
+        function switchReportMode() {
+            const btnSwitch = document.getElementById('btnSwitchMode');
+            const pageTitle = document.getElementById('page-title');
+            
+            if (currentMode === 'daily') {
+                currentMode = 'summary';
+                pageTitle.innerText = "📊 สรุปยอดเข้าเรียนรายบุคคล";
+                btnSwitch.innerHTML = "📅 กลับไปดูแบบรายวัน";
+                btnSwitch.className = "btn btn-primary btn-sm shadow-sm text-nowrap";
+                
+                document.getElementById('date-picker-group').style.setProperty("display", "none", "important");
+                document.getElementById('month-picker-group').style.setProperty("display", "flex", "important");
+                document.getElementById('btnShowAbsent').style.display = 'none'; 
+                
+                document.getElementById('daily-table-container').style.display = 'none';
+                document.getElementById('summary-table-container').style.display = 'block';
+                
+                loadSummaryData();
+            } else {
+                currentMode = 'daily';
+                pageTitle.innerText = "📊 รายงานเข้าเรียนรายวัน";
+                btnSwitch.innerHTML = "🔄 ดูสรุปยอดรายบุคคล";
+                btnSwitch.className = "btn btn-outline-primary btn-sm shadow-sm text-nowrap";
+                
+                document.getElementById('date-picker-group').style.setProperty("display", "flex", "important");
+                document.getElementById('month-picker-group').style.setProperty("display", "none", "important");
+                document.getElementById('btnShowAbsent').style.display = 'block';
+                
+                document.getElementById('daily-table-container').style.display = 'block';
+                document.getElementById('summary-table-container').style.display = 'none';
+                
+                loadData(showAbsent);
+            }
+        }
+
+        function toggleAbsentView() {
+            showAbsent = !showAbsent;
+            const btn = document.getElementById('btnShowAbsent');
+            if (showAbsent) {
+                btn.innerText = "✅ ดูคนที่มาเรียน";
+                btn.classList.replace('btn-outline-danger', 'btn-outline-success');
+            } else {
+                btn.innerText = "❌ ดูคนขาดเรียน";
+                btn.classList.replace('btn-outline-success', 'btn-outline-danger');
+            }
+            loadData(showAbsent);
+        }
+
+        // --- Data Fetching Logic ---
+        function loadData(isAbsent) {
+            if(currentMode !== 'daily') return;
+            const selectedDate = document.getElementById('reportDate').value;
+            const url = (isAbsent ? '/api/absent-students' : '/api/attendance-logs') + `?date=${selectedDate}`;
+            const tbody = document.getElementById('reportTableBody');
+            
+            fetch(url, { cache: 'no-store' })
+            .then(r => r.json())
+            .then(data => {
+                tbody.innerHTML = '';
+                if (data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">ไม่มีข้อมูลในวันที่เลือกนี้</td></tr>`;
+                    filterTable();
+                    return;
+                }
+
+                data.forEach((log, i) => {
+                    const nameDisplay = log.name ? log.name : '<span class="text-danger small" style="font-size:0.8rem;">⚠️ ยังไม่ได้ลงทะเบียน</span>';
+                    const classDisplay = log.class_group || log.room || '-';
+                    const timeDisplay = log.timestamp ? log.timestamp + ' น.' : '-';
+
+                    tbody.innerHTML += `<tr>
+                        <td>${i + 1}</td>
+                        <td class="fw-bold">${log.student_id || '-'}</td>
+                        <td class="text-start">${nameDisplay}</td>
+                        <td>${classDisplay}</td>
+                        <td>${timeDisplay}</td>
+                        <td class="${isAbsent ? 'text-danger' : 'text-success'} fw-bold" style="color: ${isAbsent ? '#dc3545' : '#198754'} !important;">
+                            ${isAbsent ? '❌ ขาดเรียน' : '✅ มาเรียน'}
+                        </td>
+                        <td>
+                            ${isAbsent ? 
+                                `<button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="manualCheckin('${log.student_id}')">✅ เช็คชื่อ</button>` : 
+                                `<button class="btn btn-danger btn-del shadow-sm" onclick="deleteLog(${log.id})">ลบ</button>`
+                            }
+                        </td>
+                    </tr>`;
+                });
+                filterTable();
+            });
+        }
+
+        function loadSummaryData() {
+            if(currentMode !== 'summary') return;
+            const selectedMonth = document.getElementById('reportMonth').value;
+            const tbody = document.getElementById('summaryTableBody');
+            
+            fetch(`/api/attendance-summary?month=${selectedMonth}`)
+            .then(r => r.json())
+            .then(data => {
+                tbody.innerHTML = '';
+                if (data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">ไม่พบข้อมูลนักเรียน</td></tr>`;
+                    filterTable();
+                    return;
+                }
+
+                data.forEach((student, i) => {
+                    tbody.innerHTML += `<tr>
+                        <td>${i + 1}</td>
+                        <td class="fw-bold">${student.student_id}</td>
+                        <td class="text-start">${student.name}</td>
+                        <td>${student.class_group}</td>
+                        <td class="text-success fw-bold">${student.present}</td>
+                        <td class="text-info fw-bold">${student.leave}</td>
+                        <td class="text-danger fw-bold">${student.absent}</td>
+                        <td class="text-warning fw-bold">${student.late}</td>
+                        <td class="text-primary fw-bold">${student.intern}</td>
+                    </tr>`;
+                });
+                filterTable();
+            });
+        }
+
+        // --- Event Listeners for Pickers ---
+        document.getElementById('reportDate').addEventListener('change', () => loadData(showAbsent));
+        document.getElementById('reportMonth').addEventListener('change', loadSummaryData);
+
+        // --- Modal & API Actions ---
+        function loadStudentsDropdown() {
+            fetch('/api/students').then(r => r.json()).then(students => {
+                const select = document.getElementById('modalStudentSelect');
+                select.innerHTML = '';
+                if(students.length === 0) { select.innerHTML = '<option value="">ไม่พบรายชื่อนักเรียน</option>'; return; }
+                students.forEach(s => { select.innerHTML += `<option value="${s.student_id}">[${s.student_id}] ${s.name} (${s.class_group})</option>`; });
+            });
+        }
+
+        function submitManualCheckin() {
+            const studentId = document.getElementById('modalStudentSelect').value;
+            const selectedRadio = document.querySelector('input[name="modalStatus"]:checked');
+            const status = selectedRadio ? selectedRadio.value : 'มาเรียน';
+            const checkDate = document.getElementById('modalDate').value;
+            const checkTime = document.getElementById('modalTime').value || '08:30';
+            
+            if(!studentId) { alert('กรุณาเลือกนักเรียน'); return; }
+            
+            fetch('/api/manual-checkin', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ student_id: studentId, date: checkDate, time: checkTime, status: status }) 
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    alert('บันทึกเช็คชื่อสำเร็จ!');
+                    bootstrap.Modal.getInstance(document.getElementById('manualModal')).hide();
+                    if(currentMode === 'daily') loadData(showAbsent); else loadSummaryData();
+                } else alert('เกิดข้อผิดพลาด: ' + data.message);
+            });
+        }
+
+        function manualCheckin(studentId) {
+            const selectedDate = document.getElementById('reportDate').value;
+            if(confirm(`⚠️ ต้องการเช็คชื่อให้นักเรียนรหัส ${studentId} สำหรับวันที่ ${selectedDate} ใช่หรือไม่?`)) {
+                fetch('/api/manual-checkin', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({ student_id: studentId, date: selectedDate, time: '08:30', status: 'มาเรียน' }) 
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if(data.status === 'success') { alert('เช็คชื่อสำเร็จ!'); loadData(showAbsent); }
+                    else alert('เกิดข้อผิดพลาด: ' + data.message);
+                });
+            }
+        }
+
+        function deleteLog(logId) {
+            if(confirm('⚠️ ต้องการลบรายการนี้ใช่หรือไม่?')) {
+                fetch('/api/delete-log/' + logId, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => { 
+                    if(data.status === 'success') loadData(showAbsent); 
+                    else alert('เกิดข้อผิดพลาดในการลบ'); 
+                });
+            }
+        }
+
+        // ✅ อัปเดตข้อมูลตารางอัตโนมัติทุกๆ 5 วินาที
+        setInterval(() => {
+            if (currentMode === 'daily') {
+                loadData(showAbsent);
+            } else if (currentMode === 'summary') {
+                loadSummaryData();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

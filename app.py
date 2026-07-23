@@ -12,6 +12,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ดึงไฟล์ Blueprint เข้ามาลิงก์กัน
 from departments import departments_bp, get_class_list
 from teachers import teachers_bp, init_teachers_db
+from app_2 import app_2_bp   # <--- 🟢 เพิ่มเชื่อมไฟล์ app_2
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key' 
@@ -19,6 +20,7 @@ app.secret_key = 'super_secret_key'
 # เปิดใช้งานระบบแอปย่อย (Blueprints)
 app.register_blueprint(departments_bp)
 app.register_blueprint(teachers_bp)
+app.register_blueprint(app_2_bp)   # <--- 🟢 เปิดใช้งาน Blueprint ของ app_2
 
 UPLOAD_FOLDER = 'img'
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
@@ -502,38 +504,52 @@ def dashboard_stats():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     
     dept = session.get('department', '')
-    period = request.args.get('period', 'day')  # รับค่าช่วงเวลา (day, week, month)
+    period = request.args.get('period', 'day')  # day, week, month
     conn = connect_db()
     
-    # กำหนดเงื่อนไข SQL ตามช่วงเวลา
-    if period == 'week':
-        date_filter = "date(l.timestamp, '+7 hours') >= date('now', '+7 hours', '-6 days')"
-        student_date_filter = "date(timestamp, '+7 hours') >= date('now', '+7 hours', '-6 days')"
-    elif period == 'month':
-        date_filter = "date(l.timestamp, '+7 hours') >= date('now', '+7 hours', '-29 days')"
-        student_date_filter = "date(timestamp, '+7 hours') >= date('now', '+7 hours', '-29 days')"
-    else:  # ค่าเริ่มต้นแบบรายวัน (day)
-        date_filter = "date(l.timestamp, '+7 hours') = date('now', '+7 hours')"
-        student_date_filter = "date(timestamp, '+7 hours') = date('now', '+7 hours')"
-    
     try:
+        if period == 'month':
+            selected_month = request.args.get('month') # รูปแบบ YYYY-MM
+            if not selected_month: selected_month = datetime.now().strftime('%Y-%m')
+            date_filter = f"strftime('%Y-%m', datetime(l.timestamp, '+7 hours')) = '{selected_month}'"
+            
+        elif period == 'week':
+            selected_month = request.args.get('month') # รูปแบบ YYYY-MM
+            week_num = int(request.args.get('week', 1)) # สัปดาห์ที่ 1-5
+            if not selected_month: selected_month = datetime.now().strftime('%Y-%m')
+            
+            year, month = map(int, selected_month.split('-'))
+            start_day = (week_num - 1) * 7 + 1
+            end_day = week_num * 7
+            
+            start_date = f"{year}-{month:02d}-{start_day:02d}"
+            if week_num == 5:
+                date_filter = f"date(l.timestamp, '+7 hours') >= '{start_date}' AND date(l.timestamp, '+7 hours') <= '{selected_month}-31'"
+            else:
+                end_date_str = f"{year}-{month:02d}-{end_day:02d}"
+                date_filter = f"date(l.timestamp, '+7 hours') >= '{start_date}' AND date(l.timestamp, '+7 hours') <= '{end_date_str}'"
+        else:  # รายวัน (day)
+            selected_date = request.args.get('date')
+            if not selected_date: selected_date = datetime.now().strftime('%Y-%m-%d')
+            date_filter = f"date(l.timestamp, '+7 hours') = '{selected_date}'"
+
         if dept == 'ทุกแผนก':
             total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
             
             present = conn.execute(f"""
-                SELECT COUNT(*) FROM attendance_logs l 
+                SELECT COUNT(DISTINCT l.student_id) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
                 WHERE {date_filter} AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
             """).fetchone()[0]
             
             late = conn.execute(f"""
-                SELECT COUNT(*) FROM attendance_logs l 
+                SELECT COUNT(DISTINCT l.student_id) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
                 WHERE {date_filter} AND l.status = 'สาย'
             """).fetchone()[0]
             
             leave = conn.execute(f"""
-                SELECT COUNT(*) FROM attendance_logs l 
+                SELECT COUNT(DISTINCT l.student_id) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
                 WHERE {date_filter} AND l.status = 'ลา'
             """).fetchone()[0]
@@ -541,20 +557,20 @@ def dashboard_stats():
             total = conn.execute("SELECT COUNT(*) FROM students WHERE department = ?", (dept,)).fetchone()[0]
             
             present = conn.execute(f"""
-                SELECT COUNT(*) FROM attendance_logs l 
+                SELECT COUNT(DISTINCT l.student_id) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
                 WHERE {date_filter} AND s.department = ? 
                 AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
             """, (dept,)).fetchone()[0]
             
             late = conn.execute(f"""
-                SELECT COUNT(*) FROM attendance_logs l 
+                SELECT COUNT(DISTINCT l.student_id) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
                 WHERE {date_filter} AND s.department = ? AND l.status = 'สาย'
             """, (dept,)).fetchone()[0]
             
             leave = conn.execute(f"""
-                SELECT COUNT(*) FROM attendance_logs l 
+                SELECT COUNT(DISTINCT l.student_id) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
                 WHERE {date_filter} AND s.department = ? AND l.status = 'ลา'
             """, (dept,)).fetchone()[0]
