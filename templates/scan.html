@@ -10,8 +10,9 @@
         body { background-color: #212121; font-family: 'Kanit', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; color: white; margin: 0; }
         .scan-container { width: 90%; max-width: 500px; text-align: center; }
         .scan-header { font-weight: 600; color: #198754; margin-bottom: 10px; }
-        .camera-box { border: 2px solid #ffc107; border-radius: 12px; padding: 5px; background: #000; margin-bottom: 20px; }
-        .camera-box img { width: 100%; border-radius: 8px; }
+        .camera-box { border: 2px solid #ffc107; border-radius: 12px; padding: 5px; background: #000; margin-bottom: 20px; position: relative;}
+        /* เปลี่ยนมาใช้ video เพื่อเล่นภาพจากกล้องเว็บแคมผ่านเบราว์เซอร์ */
+        .camera-box video { width: 100%; border-radius: 8px; transform: scaleX(-1); /* สลับซ้ายขวาให้เหมือนกระจก */ }
         
         #statusBox {
             background: #198754; color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;
@@ -31,13 +32,54 @@
         <div id="statusBox"></div>
         
         <div class="camera-box">
-            <img src="{{ url_for('video_feed') }}" alt="Camera Feed">
+            <!-- จุดที่ 1: เปลี่ยนจาก img เป็น video และซ่อน canvas ไว้ประมวลผล -->
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="canvasElement" style="display: none;"></canvas>
         </div>
 
         <a href="/dashboard" class="btn btn-back">🏠 กลับเมนูหลัก</a>
     </div>
 
     <script>
+        // --- ส่วนที่ 1: โค้ดเปิดกล้องด้วย JavaScript (ทำงานผ่านฝั่งผู้ใช้) ---
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const ctx = canvas.getContext('2d');
+
+        // ขออนุญาตเปิดกล้องเว็บแคม
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+            .then(function(stream) {
+                video.srcObject = stream;
+                
+                // พอวิดีโอเล่นปุ๊บ ให้ตั้งค่าขนาด canvas และเริ่มส่งภาพไปให้ AI
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    // ตั้งเวลาส่งภาพไปเช็คทุกๆ 1 วินาที (1000ms)
+                    setInterval(sendFrameToServer, 1000); 
+                };
+            })
+            .catch(function(err) {
+                console.error("Error accessing camera: ", err);
+                alert("ไม่สามารถเข้าถึงกล้องได้ กรุณากดอนุญาตให้เบราว์เซอร์ใช้งานกล้องเว็บแคม");
+            });
+
+        // ฟังก์ชันแคปภาพจากวิดีโอส่งไปให้ Python ประมวลผล
+        function sendFrameToServer() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                
+                fetch('/api/process-frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                })
+                .catch(err => console.error("Error sending frame: ", err));
+            }
+        }
+
+        // --- ส่วนที่ 2: โค้ดเดิมของคุณ (ดึงประวัติการเช็คชื่อมาโชว์ Popup สีเขียว) ---
         let lastLoggedId = "";
 
         setInterval(() => {
@@ -51,12 +93,11 @@
                             lastLoggedId = lastLog.student_id;
                             const statusBox = document.getElementById('statusBox');
                             
-                            // ปรับข้อความให้ชัดเจนว่าเช็คชื่อสำเร็จแล้ว
                             statusBox.innerHTML = `
                                 <div style="font-size: 1.5rem;">✅ เช็คชื่อสำเร็จ!</div>
                                 <div style="font-size: 1.1rem; margin-top: 5px;">${lastLog.name}</div>
                                 <small style="font-size: 0.9rem; opacity: 0.9;">
-                                    รหัส: ${lastLog.student_id} | แผนก: ${lastLog.department} | ห้อง: ${lastLog.room}
+                                    รหัส: ${lastLog.student_id} | แผนก: ${lastLog.department}
                                 </small>
                             `;
                             statusBox.style.display = 'block';
