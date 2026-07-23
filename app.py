@@ -104,7 +104,8 @@ def log_attendance(student_id):
             
     try:
         conn = connect_db()
-        cur = conn.execute("SELECT COUNT(*) FROM attendance_logs WHERE student_id = ? AND date(timestamp) = date('now', 'localtime')", (student_id,))
+        # เปลี่ยน +7 hours เพื่อให้ตรงกับเวลาไทย
+        cur = conn.execute("SELECT COUNT(*) FROM attendance_logs WHERE student_id = ? AND date(timestamp, '+7 hours') = date('now', '+7 hours')", (student_id,))
         if cur.fetchone()[0] == 0:
             conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
             conn.commit()
@@ -283,12 +284,13 @@ def manual_checkin():
         
     conn = connect_db()
     try:
-        # แปลงเวลาท้องถิ่นเป็น UTC โดยหักออก 7 ชั่วโมง เพื่อให้เวลาตรงกันเมื่อแสดงผลด้วย localtime
+        # แปลงเวลาท้องถิ่นเป็น UTC โดยหักออก 7 ชั่วโมง เพื่อให้เวลาตรงกันเมื่อแสดงผลด้วย +7 hours
         dt_local = datetime.strptime(f"{check_date} {check_time}:00", "%Y-%m-%d %H:%M:%S")
         dt_utc = dt_local - timedelta(hours=7)
         full_timestamp = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
         
-        cur = conn.execute("SELECT id FROM attendance_logs WHERE student_id = ? AND date(timestamp, 'localtime') = ?", (student_id, check_date))
+        # เปลี่ยนเป็น +7 hours
+        cur = conn.execute("SELECT id FROM attendance_logs WHERE student_id = ? AND date(timestamp, '+7 hours') = ?", (student_id, check_date))
         row = cur.fetchone()
         
         if status == 'ขาด' or status == 'ไม่เข้าร่วม':
@@ -312,15 +314,16 @@ def get_logs():
     selected_date = request.args.get('date')
     conn = connect_db()
     
-    date_condition = f"date(l.timestamp, 'localtime') = '{selected_date}'" if selected_date else "date(l.timestamp, 'localtime') = date('now', 'localtime')"
+    # เปลี่ยนเป็น +7 hours ทั้งหมด
+    date_condition = f"date(l.timestamp, '+7 hours') = '{selected_date}'" if selected_date else "date(l.timestamp, '+7 hours') = date('now', '+7 hours')"
     
     if dept == 'ทุกแผนก':
-        query = f"""SELECT l.id, l.student_id, s.name, s.department, s.class_group, strftime('%d/%m/%Y %H:%M', l.timestamp, 'localtime'), l.status 
+        query = f"""SELECT l.id, l.student_id, s.name, s.department, s.class_group, strftime('%d/%m/%Y %H:%M', l.timestamp, '+7 hours'), l.status 
                    FROM attendance_logs l JOIN students s ON l.student_id = s.student_id 
                    WHERE {date_condition} ORDER BY l.timestamp DESC"""
         params = ()
     else:
-        query = f"""SELECT l.id, l.student_id, s.name, s.department, s.class_group, strftime('%d/%m/%Y %H:%M', l.timestamp, 'localtime'), l.status 
+        query = f"""SELECT l.id, l.student_id, s.name, s.department, s.class_group, strftime('%d/%m/%Y %H:%M', l.timestamp, '+7 hours'), l.status 
                    FROM attendance_logs l JOIN students s ON l.student_id = s.student_id 
                    WHERE s.department = ? AND {date_condition} ORDER BY l.timestamp DESC"""
         params = (dept,)
@@ -343,7 +346,8 @@ def get_absent_students():
     selected_date = request.args.get('date')
     conn = connect_db()
     
-    date_condition = f"date(timestamp, 'localtime') = '{selected_date}'" if selected_date else "date(timestamp, 'localtime') = date('now', 'localtime')"
+    # เปลี่ยนเป็น +7 hours
+    date_condition = f"date(timestamp, '+7 hours') = '{selected_date}'" if selected_date else "date(timestamp, '+7 hours') = date('now', '+7 hours')"
     
     if dept == 'ทุกแผนก':
         query = f"""SELECT student_id, name, department, class_group FROM students 
@@ -461,43 +465,45 @@ def dashboard_stats():
         if dept == 'ทุกแผนก':
             total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
             
+            # เปลี่ยนเป็น +7 hours
             present = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, 'localtime') = date('now', 'localtime') AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
+                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
             """).fetchone()[0]
             
             late = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, 'localtime') = date('now', 'localtime') AND l.status = 'สาย'
+                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND l.status = 'สาย'
             """).fetchone()[0]
             
             leave = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, 'localtime') = date('now', 'localtime') AND l.status = 'ลา'
+                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND l.status = 'ลา'
             """).fetchone()[0]
         else:
             total = conn.execute("SELECT COUNT(*) FROM students WHERE department = ?", (dept,)).fetchone()[0]
             
+            # เปลี่ยนเป็น +7 hours
             present = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, 'localtime') = date('now', 'localtime') AND s.department = ? 
+                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND s.department = ? 
                 AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
             """, (dept,)).fetchone()[0]
             
             late = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, 'localtime') = date('now', 'localtime') AND s.department = ? AND l.status = 'สาย'
+                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND s.department = ? AND l.status = 'สาย'
             """, (dept,)).fetchone()[0]
             
             leave = conn.execute("""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, 'localtime') = date('now', 'localtime') AND s.department = ? AND l.status = 'ลา'
+                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND s.department = ? AND l.status = 'ลา'
             """, (dept,)).fetchone()[0]
             
         accounted = present + late + leave
