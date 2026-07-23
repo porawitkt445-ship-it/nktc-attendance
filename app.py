@@ -26,14 +26,14 @@ if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 # ฟังก์ชันดาวน์โหลดรูปจาก Supabase Storage มาไว้ที่เซิร์ฟเวอร์ตอนเปิดระบบ
 def download_images_from_supabase():
     try:
-        files = supabase.storage.from_("student-images").list()
+        files = supabase.storage.from_("img").list()
         if files:
             for file in files:
                 file_name = file.get('name')
                 if file_name and file_name.lower().endswith((".jpg", ".png")):
                     local_path = os.path.join(UPLOAD_FOLDER, file_name)
                     if not os.path.exists(local_path):
-                        res = supabase.storage.from_("student-images").download(file_name)
+                        res = supabase.storage.from_("img").download(file_name)
                         with open(local_path, "wb") as f:
                             f.write(res)
             print("✅ โหลดรูปภาพจาก Supabase Storage สำเร็จ!")
@@ -292,9 +292,9 @@ def register():
         with open(file_path, "wb") as f: 
             f.write(image_bytes)
             
-        # อัปโหลดรูปภาพขึ้น Supabase Storage (ถังชื่อ student-images)
+        # อัปโหลดรูปภาพขึ้น Supabase Storage (ถังชื่อ img)
         try:
-            supabase.storage.from_("student-images").upload(
+            supabase.storage.from_("img").upload(
                 path=file_name,
                 file=image_bytes,
                 file_options={"upsert": "true"}
@@ -354,13 +354,13 @@ def get_logs():
     
     if dept == 'ทุกแผนก':
         query = f"""SELECT l.id, l.student_id, s.name, s.department, s.class_group, strftime('%d/%m/%Y %H:%M', l.timestamp, '+7 hours'), l.status 
-                   FROM attendance_logs l JOIN students s ON l.student_id = s.student_id 
-                   WHERE {date_condition} ORDER BY l.timestamp DESC"""
+                    FROM attendance_logs l JOIN students s ON l.student_id = s.student_id 
+                    WHERE {date_condition} ORDER BY l.timestamp DESC"""
         params = ()
     else:
         query = f"""SELECT l.id, l.student_id, s.name, s.department, s.class_group, strftime('%d/%m/%Y %H:%M', l.timestamp, '+7 hours'), l.status 
-                   FROM attendance_logs l JOIN students s ON l.student_id = s.student_id 
-                   WHERE s.department = ? AND {date_condition} ORDER BY l.timestamp DESC"""
+                    FROM attendance_logs l JOIN students s ON l.student_id = s.student_id 
+                    WHERE s.department = ? AND {date_condition} ORDER BY l.timestamp DESC"""
         params = (dept,)
         
     rows = conn.execute(query, params).fetchall()
@@ -411,9 +411,9 @@ def delete_student(student_id):
         img_path = os.path.join(UPLOAD_FOLDER, f"{student_id}.jpg")
         if os.path.exists(img_path): os.remove(img_path)
         
-        # ลบไฟล์ภาพออกจาก Supabase Storage
+        # ลบไฟล์ภาพออกจาก Supabase Storage (ถังชื่อ img)
         try:
-            supabase.storage.from_("student-images").remove([f"{student_id}.jpg"])
+            supabase.storage.from_("img").remove([f"{student_id}.jpg"])
         except:
             pass
             
