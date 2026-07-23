@@ -194,14 +194,35 @@
                 </div>
             </div>
 
-            <!-- ✅ การ์ดแสดงกราฟโดนัท พร้อมเพิ่มปุ่มสลับช่วงเวลา (รายวัน / รายสัปดาห์ / รายเดือน) -->
+            <!-- ✅ การ์ดแสดงกราฟโดนัท พร้อมปุ่มเลือก รายวัน / รายสัปดาห์ / รายเดือน -->
             <div class="chart-card">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center mb-4 gap-3">
                     <h5 class="fw-bold mb-0" id="chart-title" style="color: #2b2946;">📈 สัดส่วนการเข้าเรียนประจำวัน</h5>
-                    <div class="btn-group" role="group" aria-label="Period Filter">
-                        <button type="button" class="btn btn-outline-primary btn-sm active" id="btn-day" onclick="changePeriod('day')">รายวัน</button>
-                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-week" onclick="changePeriod('week')">รายสัปดาห์</button>
-                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-month" onclick="changePeriod('month')">รายเดือน</button>
+                    
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <!-- ปุ่มเลือกโหมด -->
+                        <div class="btn-group" role="group" aria-label="Period Filter">
+                            <button type="button" class="btn btn-outline-primary btn-sm active" id="btn-day" onclick="changePeriod('day')">รายวัน</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-week" onclick="changePeriod('week')">รายสัปดาห์</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-month" onclick="changePeriod('month')">รายเดือน</button>
+                        </div>
+
+                        <!-- ช่องเลือกวันที่ (เฉพาะโหมดรายวัน) -->
+                        <div id="filter-day-box">
+                            <input type="date" id="input-date" class="form-control form-control-sm" onchange="loadDashboardStats()">
+                        </div>
+
+                        <!-- ช่องเลือกเดือนและสัปดาห์ (เฉพาะโหมดรายสัปดาห์/รายเดือน) -->
+                        <div id="filter-month-box" style="display: none;" class="d-flex gap-2">
+                            <input type="month" id="input-month" class="form-control form-control-sm" onchange="onMonthChange()">
+                            <select id="select-week" class="form-select form-select-sm" style="display: none; width: 130px;" onchange="loadDashboardStats()">
+                                <option value="1">สัปดาห์ที่ 1</option>
+                                <option value="2">สัปดาห์ที่ 2</option>
+                                <option value="3">สัปดาห์ที่ 3</option>
+                                <option value="4">สัปดาห์ที่ 4</option>
+                                <option value="5">สัปดาห์ที่ 5</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="chart-container">
@@ -217,7 +238,7 @@
         const sidebar = document.getElementById('sidebar');
         const mainContent = document.getElementById('mainContent');
 
-        let currentPeriod = 'day'; // ค่าเริ่มต้นเป็นรายวัน
+        let currentPeriod = 'day'; // 'day', 'week', 'month'
 
         toggleBtn.addEventListener('click', function() {
             sidebar.classList.toggle('collapsed');
@@ -225,10 +246,15 @@
         });
 
         window.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('input-date').value = today;
+            document.getElementById('input-month').value = today.slice(0, 7);
+
             if (window.innerWidth <= 768) {
                 sidebar.classList.add('collapsed');
                 mainContent.classList.add('expanded');
             }
+            loadDashboardStats();
         });
 
         function autoSelectCamera() {
@@ -264,17 +290,15 @@
             }
         });
 
-        // ฟังก์ชันสลับปุ่มช่วงเวลา
+        // ฟังก์ชันสลับโหมด รายวัน / รายสัปดาห์ / รายเดือน
         function changePeriod(period) {
             currentPeriod = period;
             
-            // สลับสถานะปุ่ม Active
             document.getElementById('btn-day').classList.remove('active');
             document.getElementById('btn-week').classList.remove('active');
             document.getElementById('btn-month').classList.remove('active');
             document.getElementById(`btn-${period}`).classList.add('active');
 
-            // เปลี่ยนข้อความหัวข้อกราฟตามปุ่ม
             const titles = {
                 'day': '📈 สัดส่วนการเข้าเรียนประจำวัน',
                 'week': '📈 สัดส่วนการเข้าเรียนรายสัปดาห์',
@@ -282,12 +306,44 @@
             };
             document.getElementById('chart-title').innerText = titles[period];
 
-            // โหลดข้อมูลใหม่ทันที
+            // จัดการแสดงผลช่องเลือก
+            if (period === 'day') {
+                document.getElementById('filter-day-box').style.display = 'block';
+                document.getElementById('filter-month-box').style.display = 'none';
+                document.getElementById('select-week').style.display = 'none';
+            } else if (period === 'month') {
+                document.getElementById('filter-day-box').style.display = 'none';
+                document.getElementById('filter-month-box').style.display = 'flex';
+                document.getElementById('select-week').style.display = 'none';
+            } else if (period === 'week') {
+                document.getElementById('filter-day-box').style.display = 'none';
+                document.getElementById('filter-month-box').style.display = 'flex';
+                document.getElementById('select-week').style.display = 'block';
+            }
+
+            loadDashboardStats();
+        }
+
+        function onMonthChange() {
             loadDashboardStats();
         }
 
         function loadDashboardStats() {
-            fetch(`/api/dashboard-stats?period=${currentPeriod}`)
+            let url = `/api/dashboard-stats?period=${currentPeriod}`;
+
+            if (currentPeriod === 'day') {
+                const dateVal = document.getElementById('input-date').value;
+                url += `&date=${dateVal}`;
+            } else {
+                const monthVal = document.getElementById('input-month').value; // เช่น 2026-07
+                url += `&month=${monthVal}`;
+                if (currentPeriod === 'week') {
+                    const weekVal = document.getElementById('select-week').value; // 1, 2, 3, 4, 5
+                    url += `&week=${weekVal}`;
+                }
+            }
+
+            fetch(url)
             .then(r => r.json())
             .then(data => {
                 if (data.total !== undefined) {
