@@ -502,49 +502,61 @@ def dashboard_stats():
     if 'username' not in session: return jsonify({"error": "Unauthorized"}), 401
     
     dept = session.get('department', '')
+    period = request.args.get('period', 'day')  # รับค่าช่วงเวลา (day, week, month)
     conn = connect_db()
+    
+    # กำหนดเงื่อนไข SQL ตามช่วงเวลา
+    if period == 'week':
+        date_filter = "date(l.timestamp, '+7 hours') >= date('now', '+7 hours', '-6 days')"
+        student_date_filter = "date(timestamp, '+7 hours') >= date('now', '+7 hours', '-6 days')"
+    elif period == 'month':
+        date_filter = "date(l.timestamp, '+7 hours') >= date('now', '+7 hours', '-29 days')"
+        student_date_filter = "date(timestamp, '+7 hours') >= date('now', '+7 hours', '-29 days')"
+    else:  # ค่าเริ่มต้นแบบรายวัน (day)
+        date_filter = "date(l.timestamp, '+7 hours') = date('now', '+7 hours')"
+        student_date_filter = "date(timestamp, '+7 hours') = date('now', '+7 hours')"
     
     try:
         if dept == 'ทุกแผนก':
             total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
             
-            present = conn.execute("""
+            present = conn.execute(f"""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
+                WHERE {date_filter} AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
             """).fetchone()[0]
             
-            late = conn.execute("""
+            late = conn.execute(f"""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND l.status = 'สาย'
+                WHERE {date_filter} AND l.status = 'สาย'
             """).fetchone()[0]
             
-            leave = conn.execute("""
+            leave = conn.execute(f"""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND l.status = 'ลา'
+                WHERE {date_filter} AND l.status = 'ลา'
             """).fetchone()[0]
         else:
             total = conn.execute("SELECT COUNT(*) FROM students WHERE department = ?", (dept,)).fetchone()[0]
             
-            present = conn.execute("""
+            present = conn.execute(f"""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND s.department = ? 
+                WHERE {date_filter} AND s.department = ? 
                 AND (l.status = 'มาเรียน' OR l.status IS NULL OR l.status = '')
             """, (dept,)).fetchone()[0]
             
-            late = conn.execute("""
+            late = conn.execute(f"""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND s.department = ? AND l.status = 'สาย'
+                WHERE {date_filter} AND s.department = ? AND l.status = 'สาย'
             """, (dept,)).fetchone()[0]
             
-            leave = conn.execute("""
+            leave = conn.execute(f"""
                 SELECT COUNT(*) FROM attendance_logs l 
                 JOIN students s ON l.student_id = s.student_id 
-                WHERE date(l.timestamp, '+7 hours') = date('now', '+7 hours') AND s.department = ? AND l.status = 'ลา'
+                WHERE {date_filter} AND s.department = ? AND l.status = 'ลา'
             """, (dept,)).fetchone()[0]
             
         accounted = present + late + leave
