@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 from supabase import create_client
 
-# ตั้งค่าการเชื่อมต่อ Supabase
+# ตั้งค่าการเชื่อมต่อ Supabase (ใช้ Secret Key ตัวเต็ม)
 SUPABASE_URL = "https://rznilhmtsoacewnukcjd.supabase.co"
-SUPABASE_KEY = "sb_publishable_ihPAgLLBLlOWFL4qqzJPQg_9FFXFLg8"
+SUPABASE_KEY = "sb_secret_R8cAQNpKYO4r7v1TfwOL1Q_CvEMCCp3"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ดึงไฟล์ Blueprint เข้ามาลิงก์กัน
