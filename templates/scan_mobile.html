@@ -94,11 +94,26 @@
             .then(r => r.json())
             .then(data => {
                 isSending = false;
-                if(data.student_id !== "Unknown") {
+                
+                // 🔴 กรณีที่ 1: สแกนเจอคนแปลกหน้า
+                if (data.student_id === "ไม่พบข้อมูลในระบบ") {
+                    statusBox.innerHTML = `❌ ไม่พบข้อมูลในระบบ!`;
+                    statusBox.style.background = "#dc3545"; // เปลี่ยนเป็นสีแดง
+                    statusBox.style.display = 'block';
+                    
+                    setTimeout(() => { 
+                        statusBox.style.display = 'none'; 
+                    }, 2000);
+                }
+                // 🟢 กรณีที่ 2: สแกนเจอนักเรียนในระบบ
+                else if (data.student_id && data.student_id !== "Unknown") {
                     isSuccess = true;
                     loadingText.style.display = 'none';
+                    
                     statusBox.innerHTML = `✅ เช็คชื่อสำเร็จ!<br>รหัสนักศึกษา: ${data.student_id}`;
+                    statusBox.style.background = "#198754"; // คืนค่ากลับเป็นสีเขียว
                     statusBox.style.display = 'block';
+                    
                     setTimeout(() => { 
                         statusBox.style.display = 'none'; 
                         loadingText.style.display = 'block'; 
