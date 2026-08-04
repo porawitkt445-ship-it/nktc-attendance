@@ -1,5 +1,5 @@
 # teachers.py - จัดการระบบบัญชีครูและเข้าสู่ระบบ
-from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash
 import sqlite3
 
 teachers_bp = Blueprint('teachers', __name__)
@@ -43,7 +43,9 @@ def login_page():
             session['department'] = teacher[4] if teacher[4] else "-"
             return redirect(url_for('index'))
         else:
-            return render_template('login.html')
+            # 🔴 เพิ่มระบบแจ้งเตือนเมื่อชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง
+            flash('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง', 'danger')
+            return redirect(url_for('teachers.login_page'))
             
     return render_template('login.html')
 
