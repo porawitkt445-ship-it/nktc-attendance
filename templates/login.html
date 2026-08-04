@@ -39,7 +39,7 @@
             border-radius: 20px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-        .login-title { margin-top: 50px; font-weight: 700; margin-bottom: 25px; font-size: 1.3rem; }
+        .login-title { margin-top: 50px; font-weight: 700; margin-bottom: 20px; font-size: 1.3rem; }
         .form-control {
             border: 1.5px solid #000;
             border-radius: 8px;
@@ -55,7 +55,7 @@
             width: 100%;
             padding: 8px;
             border: none;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         .btn-login:hover { background-color: #9bd2ff; }
     </style>
@@ -71,6 +71,17 @@
         <img src="{{ url_for('static', filename='logo-nktc.png') }}" alt="Logo" class="logo-img">
         
         <div class="login-title">ล็อกอิน</div>
+
+        <!-- 🔴 ส่วนเพิ่มใหม่: แสดงข้อความแจ้งเตือนเมื่อรหัสผ่านหรือชื่อผู้ใช้ผิด -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-danger py-2 mb-3" style="font-size: 0.85rem; border-radius: 6px;" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
         
         <form action="/login" method="POST">
             <input type="text" class="form-control" name="username" placeholder="ชื่อผู้ใช้" required>
