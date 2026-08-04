@@ -168,7 +168,7 @@ def generate_frames():
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
                     # ปรับจาก 100 เหลือ 65 ให้ตรวจเข้มขึ้น
-                    if conf < 65: 
+                    if conf < 50: 
                         student_id = labels.get(id_, "Not Found")
                 
                 # เพิ่มลูกเล่นสี: ถ้าเจอคน = กรอบเขียว, ถ้าแปลกหน้า = กรอบแดง
