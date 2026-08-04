@@ -161,14 +161,26 @@ def generate_frames():
             if not success: continue
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_cascade.detectMultiScale(gray, 1.2, 5)
+            
+            # --- 🟢 ส่วนที่แก้ไขแล้ว (กล้องหลัก) ---
             for (x, y, w, h) in faces:
-                student_id = "Unknown"
+                student_id = "Not Found" # เปลี่ยนจาก Unknown เป็น Not Found
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    if conf < 100: student_id = labels.get(id_, "Unknown")
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(frame, student_id, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-                if student_id != "Unknown": log_attendance(student_id)
+                    # ปรับจาก 100 เหลือ 65 ให้ตรวจเข้มขึ้น
+                    if conf < 65: 
+                        student_id = labels.get(id_, "Not Found")
+                
+                # เพิ่มลูกเล่นสี: ถ้าเจอคน = กรอบเขียว, ถ้าแปลกหน้า = กรอบแดง
+                color = (0, 255, 0) if student_id != "Not Found" else (0, 0, 255)
+                
+                cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+                cv2.putText(frame, student_id, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+                
+                if student_id != "Not Found": 
+                    log_attendance(student_id)
+            # --------------------------------------
+            
             _, buffer = cv2.imencode('.jpg', frame)
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
     finally: 
@@ -185,15 +197,20 @@ def process_frame():
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.2, 5)
-        student_id = "Unknown"
+        
+        # --- 🟢 ส่วนที่แก้ไขแล้ว (กล้องมือถือ) ---
+        student_id = "Not Found"
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                if conf < 100: 
-                    student_id = labels.get(id_, "Unknown")
-                    if student_id != "Unknown":
+                if conf < 65: # ปรับให้เข้มเท่ากล้องหลัก
+                    matched_id = labels.get(id_, "Not Found")
+                    if matched_id != "Not Found":
+                        student_id = matched_id
                         log_attendance(student_id)
                         break
+        # ---------------------------------------
+        
         return jsonify({"student_id": student_id})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
