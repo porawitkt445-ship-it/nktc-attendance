@@ -40,8 +40,8 @@
         <a href="/dashboard" class="btn btn-back">🏠 กลับเมนูหลัก</a>
     </div>
 
-    <script>
-        // --- ส่วนที่ 1: โค้ดเปิดกล้องด้วย JavaScript (ทำงานผ่านฝั่งผู้ใช้) ---
+<script>
+        // --- ส่วนที่ 1: โค้ดเปิดกล้องด้วย JavaScript ---
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('canvasElement');
         const ctx = canvas.getContext('2d');
@@ -51,11 +51,10 @@
             .then(function(stream) {
                 video.srcObject = stream;
                 
-                // พอวิดีโอเล่นปุ๊บ ให้ตั้งค่าขนาด canvas และเริ่มส่งภาพไปให้ AI
                 video.onloadedmetadata = () => {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    // ตั้งเวลาส่งภาพไปเช็คทุกๆ 1 วินาที (1000ms)
+                    // ตั้งเวลาส่งภาพไปเช็คทุกๆ 1 วินาที
                     setInterval(sendFrameToServer, 1000); 
                 };
             })
@@ -75,11 +74,27 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image: imageData })
                 })
+                .then(response => response.json())
+                .then(data => {
+                    // 🔴 เพิ่มระบบ: ถ้าได้คำว่า "ไม่พบข้อมูลในระบบ" ให้เด้งกล่องสีแดงเตือน
+                    if (data.student_id === "ไม่พบข้อมูลในระบบ") {
+                        const statusBox = document.getElementById('statusBox');
+                        statusBox.innerHTML = `
+                            <div style="font-size: 1.5rem;">❌ ไม่พบข้อมูลในระบบ!</div>
+                            <div style="font-size: 1rem; margin-top: 5px;">กรุณาติดต่อครูเพื่อลงทะเบียนใบหน้า</div>
+                        `;
+                        statusBox.style.background = "#dc3545"; // เปลี่ยนพื้นหลังเป็นสีแดง
+                        statusBox.style.boxShadow = "0 0 15px rgba(220, 53, 69, 0.7)";
+                        statusBox.style.display = 'block';
+                        
+                        setTimeout(() => { statusBox.style.display = 'none'; }, 3000);
+                    }
+                })
                 .catch(err => console.error("Error sending frame: ", err));
             }
         }
 
-        // --- ส่วนที่ 2: โค้ดเดิมของคุณ (ดึงประวัติการเช็คชื่อมาโชว์ Popup สีเขียว) ---
+        // --- ส่วนที่ 2: ดึงประวัติการเช็คชื่อมาโชว์ Popup สีเขียว ---
         let lastLoggedId = "";
 
         setInterval(() => {
@@ -100,8 +115,12 @@
                                     รหัส: ${lastLog.student_id} | แผนก: ${lastLog.department}
                                 </small>
                             `;
+                            // 🟢 บังคับให้เป็นสีเขียว (เผื่อก่อนหน้านี้เปลี่ยนเป็นสีแดงไป)
+                            statusBox.style.background = "#198754"; 
+                            statusBox.style.boxShadow = "0 0 15px rgba(25, 135, 84, 0.7)";
                             statusBox.style.display = 'block';
-                            setTimeout(() => { statusBox.style.display = 'none'; }, 5000);
+                            
+                            setTimeout(() => { statusBox.style.display = 'none'; }, 4000);
                         }
                     }
                 });
