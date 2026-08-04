@@ -163,18 +163,18 @@ def generate_frames():
             faces = face_cascade.detectMultiScale(gray, 1.2, 5)
             
             for (x, y, w, h) in faces:
-                student_id = "Not Found" 
+                student_id = "ไม่พบข้อมูลในระบบ" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
                     if conf < 50: 
-                        student_id = labels.get(id_, "Not Found")
+                        student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
-                color = (0, 255, 0) if student_id != "Not Found" else (0, 0, 255)
+                color = (0, 255, 0) if student_id != "ไม่พบข้อมูลในระบบ" else (0, 0, 255)
                 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
                 cv2.putText(frame, student_id, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
                 
-                if student_id != "Not Found": 
+                if student_id != "ไม่พบข้อมูลในระบบ": 
                     log_attendance(student_id)
             
             _, buffer = cv2.imencode('.jpg', frame)
@@ -194,13 +194,13 @@ def process_frame():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.2, 5)
         
-        student_id = "Not Found"
+        student_id = "ไม่พบข้อมูลในระบบ"
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
                 if conf < 50: 
-                    matched_id = labels.get(id_, "Not Found")
-                    if matched_id != "Not Found":
+                    matched_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
+                    if matched_id != "ไม่พบข้อมูลในระบบ":
                         student_id = matched_id
                         log_attendance(student_id)
                         break
