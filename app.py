@@ -167,7 +167,7 @@ def generate_frames():
                 student_id = "Not Found" # เปลี่ยนจาก Unknown เป็น Not Found
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    # ปรับจาก 100 เหลือ 65 ให้ตรวจเข้มขึ้น
+                    # ปรับจาก 100 เหลือ 50 ให้ตรวจเข้มขึ้น
                     if conf < 50: 
                         student_id = labels.get(id_, "Not Found")
                 
@@ -203,7 +203,7 @@ def process_frame():
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                if conf < 65: # ปรับให้เข้มเท่ากล้องหลัก
+                if conf < 50: # ปรับให้เข้มเท่ากล้องหลัก
                     matched_id = labels.get(id_, "Not Found")
                     if matched_id != "Not Found":
                         student_id = matched_id
@@ -598,6 +598,7 @@ def dashboard_stats():
         
         return jsonify({"total": total, "present": present, "late": late, "leave": leave, "absent": absent})
     except Exception as e:
+        print(f"Error occurred: {e}")
         return jsonify({"total": 0, "present": 0, "late": 0, "leave": 0, "absent": 0})
     finally:
         conn.close()
