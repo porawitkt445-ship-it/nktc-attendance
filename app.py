@@ -117,9 +117,9 @@ def train_ai_auto():
         recognizer.save("trainer.yml")
         with open("labels.pkl", "wb") as f: pickle.dump(label_ids, f)
 
-# ระบบป้องกันการสแกนซ้ำ
+# --- 🟢 แก้ไขระบบป้องกันการสแกนซ้ำสำหรับทดสอบ ---
 scanned_students = {}
-SCAN_COOLDOWN = 300 
+SCAN_COOLDOWN = 10 # ลดเหลือ 10 วินาที
 
 def log_attendance(student_id):
     current_time = time.time()
@@ -129,14 +129,14 @@ def log_attendance(student_id):
             
     try:
         conn = connect_db()
-        cur = conn.execute("SELECT COUNT(*) FROM attendance_logs WHERE student_id = ? AND date(timestamp, '+7 hours') = date('now', '+7 hours')", (student_id,))
-        if cur.fetchone()[0] == 0:
-            conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
-            conn.commit()
-            scanned_students[student_id] = current_time
+        # ตัดเงื่อนไขเช็ควันละ 1 ครั้งออก บันทึกข้อมูลได้เลย
+        conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
+        conn.commit()
+        scanned_students[student_id] = current_time
         conn.close()
     except sqlite3.Error as e:
         print(f"Database error: {e}")
+# ----------------------------------------------
 
 # ระบบประมวลผลกล้อง
 def generate_frames():
@@ -162,16 +162,13 @@ def generate_frames():
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_cascade.detectMultiScale(gray, 1.2, 5)
             
-            # --- 🟢 ส่วนที่แก้ไขแล้ว (กล้องหลัก) ---
             for (x, y, w, h) in faces:
-                student_id = "Not Found" # เปลี่ยนจาก Unknown เป็น Not Found
+                student_id = "Not Found" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    # ปรับจาก 100 เหลือ 50 ให้ตรวจเข้มขึ้น
                     if conf < 50: 
                         student_id = labels.get(id_, "Not Found")
                 
-                # เพิ่มลูกเล่นสี: ถ้าเจอคน = กรอบเขียว, ถ้าแปลกหน้า = กรอบแดง
                 color = (0, 255, 0) if student_id != "Not Found" else (0, 0, 255)
                 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
@@ -179,7 +176,6 @@ def generate_frames():
                 
                 if student_id != "Not Found": 
                     log_attendance(student_id)
-            # --------------------------------------
             
             _, buffer = cv2.imencode('.jpg', frame)
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
@@ -198,18 +194,16 @@ def process_frame():
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.2, 5)
         
-        # --- 🟢 ส่วนที่แก้ไขแล้ว (กล้องมือถือ) ---
         student_id = "Not Found"
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                if conf < 50: # ปรับให้เข้มเท่ากล้องหลัก
+                if conf < 50: 
                     matched_id = labels.get(id_, "Not Found")
                     if matched_id != "Not Found":
                         student_id = matched_id
                         log_attendance(student_id)
                         break
-        # ---------------------------------------
         
         return jsonify({"student_id": student_id})
     except Exception as e:
