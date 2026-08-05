@@ -6,7 +6,7 @@ from supabase import create_client
 
 # ตั้งค่าการเชื่อมต่อ Supabase (ใช้ Secret Key ตัวเต็ม)
 SUPABASE_URL = "https://rznilhmtsoacewnukcjd.supabase.co"
-SUPABASE_KEY = "sb_secret_R8cAQNpKYO4r7v1TfwOL1Q_CvEMCCp3"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6bmlsaG10c29hY2V3bnVrY2pkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDc3MTQ3NSwiZXhwIjoyMTAwMzQ3NDc1fQ.Xw59WyROTjNazHnODT25OeTDYcK2PVB7r6yoflEQIZM"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ดึงไฟล์ Blueprint เข้ามาลิงก์กัน
