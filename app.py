@@ -119,19 +119,33 @@ def train_ai_auto():
 
 # --- 🟢 แก้ไขระบบป้องกันการสแกนซ้ำสำหรับทดสอบ ---
 scanned_students = {}
-SCAN_COOLDOWN = 10 # ลดเหลือ 10 วินาที
+SCAN_COOLDOWN = 10 # หน่วงเวลา 10 วินาที
 
 def log_attendance(student_id):
     current_time = time.time()
+    
+    # 1. เช็ค Cooldown ใน Memory ป้องกันการประมวลผลรัวๆ
     if student_id in scanned_students:
         if current_time - scanned_students[student_id] < SCAN_COOLDOWN:
             return 
             
     try:
         conn = connect_db()
-        # ตัดเงื่อนไขเช็ควันละ 1 ครั้งออก บันทึกข้อมูลได้เลย
-        conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
-        conn.commit()
+        
+        # 2. เช็คในฐานข้อมูลว่า วันนี้ (เวลาไทย) รหัสนี้มีการเช็คชื่อไปหรือยัง
+        cur = conn.execute("""
+            SELECT id FROM attendance_logs 
+            WHERE student_id = ? AND date(timestamp, '+7 hours') = date('now', '+7 hours')
+        """, (student_id,))
+        
+        row = cur.fetchone()
+        
+        # 3. ถ้ายังไม่มีข้อมูลของวันนี้ ค่อยบันทึกใหม่
+        if not row:
+            conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
+            conn.commit()
+            
+        # อัปเดตเวลาที่สแกนล่าสุด
         scanned_students[student_id] = current_time
         conn.close()
     except sqlite3.Error as e:
