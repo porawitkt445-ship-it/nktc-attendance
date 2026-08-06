@@ -245,7 +245,7 @@ def process_frame():
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                if conf < 50: 
+                if conf < 55: 
                     matched_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                     if matched_id != "ไม่พบข้อมูลในระบบ":
                         student_id = matched_id
