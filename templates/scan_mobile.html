@@ -89,7 +89,7 @@
             fetch('/api/process-frame', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.5) })
+                body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 3) })
             })
             .then(r => r.json())
             .then(data => {
