@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
-import sqlite3, cv2, os, numpy as np, base64, pickle, time
+import sqlite3, cv2, os, numpy as np, base64, pickle, time, threading
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 from supabase import create_client
@@ -42,6 +42,35 @@ def download_images_from_supabase():
     except Exception as e:
         print("❌ ไม่สามารถโหลดรูปจาก Supabase ได้:", e)
 
+# ----------------- ระบบ Backup & Restore ฐานข้อมูล -----------------
+# ฟังก์ชันดึงไฟล์ฐานข้อมูลเก่าจาก Supabase มาใช้ตอนเปิดเซิร์ฟเวอร์
+def restore_db():
+    try:
+        res = supabase.storage.from_("img").download("attendance.db")
+        with open("attendance.db", "wb") as f:
+            f.write(res)
+        print("✅ ดึงฐานข้อมูล attendance.db จาก Supabase สำเร็จ!")
+    except Exception as e:
+        print("ℹ️ ยังไม่มีไฟล์ฐานข้อมูลบน Supabase หรือดึงไม่ได้ (จะสร้างใหม่):", e)
+
+# ฟังก์ชันแบ็คอัปฐานข้อมูลขึ้น Supabase
+def backup_db():
+    try:
+        with open("attendance.db", "rb") as f:
+            supabase.storage.from_("img").upload(
+                path="attendance.db",
+                file=f.read(),
+                file_options={"upsert": "true"}
+            )
+        print("✅ แบ็คอัปฐานข้อมูลขึ้นระบบคลาวด์สำเร็จ")
+    except Exception as e:
+        print("❌ แบ็คอัปฐานข้อมูลไม่สำเร็จ:", e)
+
+# รันการแบ็คอัปแบบพื้นหลัง (กล้องจะได้ไม่กระตุก)
+def backup_db_bg():
+    threading.Thread(target=backup_db).start()
+# ---------------------------------------------------------------
+
 # ตัวแปรระดับ Global สำหรับจัดการการสลับกล้องอัตโนมัติ
 LAST_MOBILE_SEEN = 0.0
 MOBILE_TIMEOUT = 4.0
@@ -78,6 +107,8 @@ def init_db():
     
     init_teachers_db()
 
+# เรียกใช้งานฟังก์ชันเริ่มต้นระบบ
+restore_db()  # <--- 🟢 ดึงฐานข้อมูลจากคลาวด์ก่อน
 init_db()
 download_images_from_supabase()
 
@@ -148,6 +179,8 @@ def log_attendance(student_id):
         # อัปเดตเวลาที่สแกนล่าสุด
         scanned_students[student_id] = current_time
         conn.close()
+        
+        backup_db_bg()  # <--- 🟢 สั่ง Backup ทันทีที่มีการเช็คชื่อ
     except sqlite3.Error as e:
         print(f"Database error: {e}")
 # ----------------------------------------------
@@ -333,6 +366,7 @@ def register():
         train_ai_auto()
         load_ai_model()
         
+    backup_db_bg()  # <--- 🟢 สั่ง Backup ฐานข้อมูลหลังลงทะเบียนเสร็จ
     return jsonify({"status": "success"})
 
 @app.route('/api/manual-checkin', methods=['POST'])
@@ -367,6 +401,8 @@ def manual_checkin():
         
         conn.commit()
         conn.close()
+        
+        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังแก้เช็คชื่อ
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -446,6 +482,8 @@ def delete_student(student_id):
             
         if student_id in scanned_students: del scanned_students[student_id]
         train_ai_auto(); load_ai_model()
+        
+        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังลบนักเรียน
         return jsonify({"status": "success"})
     except: return jsonify({"status": "error"}), 500
     
@@ -455,6 +493,8 @@ def delete_log(log_id):
         conn = connect_db()
         conn.execute("DELETE FROM attendance_logs WHERE id = ?", (log_id,))
         conn.commit(); conn.close()
+        
+        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังลบประวัติการเช็คชื่อ
         return jsonify({"status": "success"})
     except: return jsonify({"status": "error"}), 500
 
@@ -520,6 +560,8 @@ def edit_student():
             
         conn.commit()
         conn.close()
+        
+        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังแก้ไขข้อมูลนักเรียน
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
