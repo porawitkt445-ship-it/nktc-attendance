@@ -230,7 +230,7 @@ def generate_frames():
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
                     # 🟢 ปรับความเข้มงวดเป็น 60 ให้สแกนผ่านกล้องได้ง่ายขึ้น
-                    if conf < 60: 
+                    if conf < 50: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
                 color = (0, 255, 0) if student_id != "ไม่พบข้อมูลในระบบ" else (0, 0, 255)
