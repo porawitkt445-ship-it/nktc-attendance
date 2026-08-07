@@ -42,33 +42,38 @@ def download_images_from_supabase():
     except Exception as e:
         print("❌ ไม่สามารถโหลดรูปจาก Supabase ได้:", e)
 
-# ----------------- ระบบ Backup & Restore ฐานข้อมูล -----------------
-# ฟังก์ชันดึงไฟล์ฐานข้อมูลเก่าจาก Supabase มาใช้ตอนเปิดเซิร์ฟเวอร์
-def restore_db():
-    try:
-        res = supabase.storage.from_("img").download("attendance.db")
-        with open("attendance.db", "wb") as f:
-            f.write(res)
-        print("✅ ดึงฐานข้อมูล attendance.db จาก Supabase สำเร็จ!")
-    except Exception as e:
-        print("ℹ️ ยังไม่มีไฟล์ฐานข้อมูลบน Supabase หรือดึงไม่ได้ (จะสร้างใหม่):", e)
+# ----------------- ระบบ Backup & Restore -----------------
+# 🟢 แก้ไขใหม่: ดึงทีเดียว 3 ไฟล์ (ฐานข้อมูล + สมอง AI 2 ไฟล์)
+def restore_files():
+    files_to_restore = ["attendance.db", "trainer.yml", "labels.pkl"]
+    for filename in files_to_restore:
+        try:
+            res = supabase.storage.from_("img").download(filename)
+            with open(filename, "wb") as f:
+                f.write(res)
+            print(f"✅ ดึงไฟล์ {filename} จาก Supabase สำเร็จ!")
+        except Exception as e:
+            print(f"ℹ️ ยังไม่มีไฟล์ {filename} บนคลาวด์ (จะสร้างใหม่): {e}")
 
-# ฟังก์ชันแบ็คอัปฐานข้อมูลขึ้น Supabase
-def backup_db():
-    try:
-        with open("attendance.db", "rb") as f:
-            supabase.storage.from_("img").upload(
-                path="attendance.db",
-                file=f.read(),
-                file_options={"upsert": "true"}
-            )
-        print("✅ แบ็คอัปฐานข้อมูลขึ้นระบบคลาวด์สำเร็จ")
-    except Exception as e:
-        print("❌ แบ็คอัปฐานข้อมูลไม่สำเร็จ:", e)
+# 🟢 แก้ไขใหม่: แบ็คอัปขึ้นคลาวด์ทีเดียว 3 ไฟล์
+def backup_files():
+    files_to_backup = ["attendance.db", "trainer.yml", "labels.pkl"]
+    for filename in files_to_backup:
+        if os.path.exists(filename):
+            try:
+                with open(filename, "rb") as f:
+                    supabase.storage.from_("img").upload(
+                        path=filename,
+                        file=f.read(),
+                        file_options={"upsert": "true"}
+                    )
+                print(f"✅ แบ็คอัป {filename} สำเร็จ")
+            except Exception as e:
+                print(f"❌ แบ็คอัป {filename} ไม่สำเร็จ:", e)
 
-# รันการแบ็คอัปแบบพื้นหลัง (กล้องจะได้ไม่กระตุก)
+# รันการแบ็คอัปแบบพื้นหลัง (ใช้ชื่อเดิมเพื่อไม่ให้กระทบโค้ดส่วนอื่น)
 def backup_db_bg():
-    threading.Thread(target=backup_db).start()
+    threading.Thread(target=backup_files).start()
 # ---------------------------------------------------------------
 
 # ตัวแปรระดับ Global สำหรับจัดการการสลับกล้องอัตโนมัติ
@@ -107,13 +112,6 @@ def init_db():
     
     init_teachers_db()
 
-# เรียกใช้งานฟังก์ชันเริ่มต้นระบบ
-restore_db()  # <--- 🟢 ดึงฐานข้อมูลจากคลาวด์ก่อน
-init_db()
-download_images_from_supabase()
-
-def connect_db(): return sqlite3.connect("attendance.db")
-
 # ระบบ AI
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 recognizer = cv2.face.LBPHFaceRecognizer_create()
@@ -126,7 +124,15 @@ def load_ai_model():
         recognizer.read("trainer.yml")
         with open("labels.pkl", "rb") as f: labels = pickle.load(f)
         is_ai_ready = True
-load_ai_model()
+        print("✅ โหลดสมอง AI สำเร็จ!")
+
+# 🟢 เรียกใช้งานฟังก์ชันเริ่มต้นระบบ (ปรับลำดับใหม่)
+restore_files()  # ดึงไฟล์ทั้งหมดจากคลาวด์ก่อน
+init_db()
+download_images_from_supabase()
+load_ai_model()  # โหลดสมอง AI เข้าความจำทันที
+
+def connect_db(): return sqlite3.connect("attendance.db")
 
 def train_ai_auto():
     label_ids, y_labels, x_train, current_id = {}, [], [], 0
@@ -138,17 +144,23 @@ def train_ai_auto():
                     label_ids[current_id] = student_id
                     current_id += 1
                 id_ = [k for k, v in label_ids.items() if v == student_id][0]
+                
                 img = Image.open(os.path.join(UPLOAD_FOLDER, file)).convert("L")
-                faces = face_cascade.detectMultiScale(np.array(img, "uint8"), 1.1, 4)
+                img_np = np.array(img, "uint8")
+                
+                # 🟢 เทคนิคเกลี่ยแสงให้ภาพสว่างเท่ากันก่อนให้ AI จำหน้า
+                img_np = cv2.equalizeHist(img_np)
+                
+                faces = face_cascade.detectMultiScale(img_np, 1.1, 4)
                 for (x, y, w, h) in faces: 
-                    x_train.append(np.array(img, "uint8")[y:y+h, x:x+w])
+                    x_train.append(img_np[y:y+h, x:x+w])
                     y_labels.append(id_)
     if x_train:
         recognizer.train(x_train, np.array(y_labels))
         recognizer.save("trainer.yml")
         with open("labels.pkl", "wb") as f: pickle.dump(label_ids, f)
 
-# --- 🟢 แก้ไขระบบป้องกันการสแกนซ้ำสำหรับทดสอบ ---
+# --- แก้ไขระบบป้องกันการสแกนซ้ำสำหรับทดสอบ ---
 scanned_students = {}
 SCAN_COOLDOWN = 10 # หน่วงเวลา 10 วินาที
 
@@ -180,7 +192,7 @@ def log_attendance(student_id):
         scanned_students[student_id] = current_time
         conn.close()
         
-        backup_db_bg()  # <--- 🟢 สั่ง Backup ทันทีที่มีการเช็คชื่อ
+        backup_db_bg()  # สั่ง Backup ทันทีที่มีการเช็คชื่อ
     except sqlite3.Error as e:
         print(f"Database error: {e}")
 # ----------------------------------------------
@@ -206,14 +218,19 @@ def generate_frames():
                 camera = cv2.VideoCapture(0)
             success, frame = camera.read()
             if not success: continue
+            
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # 🟢 ปรับลดเงาและเกลี่ยให้ภาพสว่างขึ้น
+            gray = cv2.equalizeHist(gray)
+            
             faces = face_cascade.detectMultiScale(gray, 1.2, 5)
             
             for (x, y, w, h) in faces:
                 student_id = "ไม่พบข้อมูลในระบบ" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    if conf < 50: 
+                    # 🟢 ปรับความเข้มงวดเป็น 60 ให้สแกนผ่านกล้องได้ง่ายขึ้น
+                    if conf < 60: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
                 color = (0, 255, 0) if student_id != "ไม่พบข้อมูลในระบบ" else (0, 0, 255)
@@ -238,13 +255,18 @@ def process_frame():
         header, encoded = data['image'].split(",", 1)
         nparr = np.frombuffer(base64.b64decode(encoded), np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # 🟢 ปรับลดเงาและเกลี่ยให้ภาพสว่างขึ้น
+        gray = cv2.equalizeHist(gray)
+        
         faces = face_cascade.detectMultiScale(gray, 1.2, 5)
         
         student_id = "ไม่พบข้อมูลในระบบ"
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
+                # 🟢 ปรับความเข้มงวดเป็น 60 ให้สแกนผ่านกล้องมือถือได้ง่ายขึ้น
                 if conf < 60: 
                     matched_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                     if matched_id != "ไม่พบข้อมูลในระบบ":
@@ -366,7 +388,7 @@ def register():
         train_ai_auto()
         load_ai_model()
         
-    backup_db_bg()  # <--- 🟢 สั่ง Backup ฐานข้อมูลหลังลงทะเบียนเสร็จ
+    backup_db_bg()  # สั่ง Backup ฐานข้อมูลและสมอง AI ทันทีหลังลงทะเบียนเสร็จ
     return jsonify({"status": "success"})
 
 @app.route('/api/manual-checkin', methods=['POST'])
@@ -402,7 +424,7 @@ def manual_checkin():
         conn.commit()
         conn.close()
         
-        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังแก้เช็คชื่อ
+        backup_db_bg()  # สั่ง Backup หลังแก้เช็คชื่อ
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -483,7 +505,7 @@ def delete_student(student_id):
         if student_id in scanned_students: del scanned_students[student_id]
         train_ai_auto(); load_ai_model()
         
-        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังลบนักเรียน
+        backup_db_bg()  # สั่ง Backup หลังลบนักเรียน
         return jsonify({"status": "success"})
     except: return jsonify({"status": "error"}), 500
     
@@ -494,7 +516,7 @@ def delete_log(log_id):
         conn.execute("DELETE FROM attendance_logs WHERE id = ?", (log_id,))
         conn.commit(); conn.close()
         
-        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังลบประวัติการเช็คชื่อ
+        backup_db_bg()  # สั่ง Backup หลังลบประวัติการเช็คชื่อ
         return jsonify({"status": "success"})
     except: return jsonify({"status": "error"}), 500
 
@@ -561,7 +583,7 @@ def edit_student():
         conn.commit()
         conn.close()
         
-        backup_db_bg()  # <--- 🟢 สั่ง Backup หลังแก้ไขข้อมูลนักเรียน
+        backup_db_bg()  # สั่ง Backup หลังแก้ไขข้อมูลนักเรียน
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
