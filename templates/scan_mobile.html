@@ -13,7 +13,13 @@
         #video { width: 100%; border-radius: 8px; }
         /* สลับซ้ายขวา (กระจก) เฉพาะกล้องหน้า */
         .mirror { transform: scaleX(-1); }
-        #statusBox { background: #198754; color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; display: none; font-weight: 600; border: 2px solid #fff; }
+        
+        #statusBox { 
+            background: #198754; color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; 
+            display: none; font-weight: 600; border: 2px solid #fff; 
+            box-shadow: 0 0 15px rgba(25, 135, 84, 0.7);
+            transition: all 0.3s ease;
+        }
         .scanning-text { color: #ffc107; font-size: 1.1rem; margin-bottom: 10px; }
         .btn-action { width: 100%; padding: 12px; border-radius: 8px; font-weight: 600; margin-top: 10px; }
     </style>
@@ -45,6 +51,17 @@
         let streamReference = null;
         let isSuccess = false;
         let isSending = false;
+
+        // 🟢 ระบบจดจำคนที่เคยสแกนไปแล้วของวันนี้
+        let knownScannedIds = new Set();
+
+        // ดึงข้อมูลครั้งแรกตอนเปิดหน้าเว็บ
+        fetch('/api/attendance-logs')
+            .then(res => res.json())
+            .then(logs => {
+                logs.forEach(log => knownScannedIds.add(log.student_id));
+            })
+            .catch(err => console.error("Error fetching logs: ", err));
 
         // ฟังก์ชันเริ่มกล้อง
         function startCamera(mode) {
@@ -78,7 +95,7 @@
         // เริ่มต้น
         startCamera(currentFacingMode);
 
-        // ระบบส่งภาพ
+        // ระบบส่งภาพไปประมวลผล
         setInterval(() => {
             if (video.videoWidth === 0 || isSuccess || isSending) return;
             isSending = true;
@@ -89,36 +106,50 @@
             fetch('/api/process-frame', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 3) })
+                body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.5) })
             })
             .then(r => r.json())
             .then(data => {
                 isSending = false;
+                const sid = data.student_id;
                 
                 // 🔴 กรณีที่ 1: สแกนเจอคนแปลกหน้า
-                if (data.student_id === "ไม่พบข้อมูลในระบบ") {
+                if (sid === "ไม่พบข้อมูลในระบบ") {
                     statusBox.innerHTML = `❌ ไม่พบข้อมูลในระบบ!`;
-                    statusBox.style.background = "#dc3545"; // เปลี่ยนเป็นสีแดง
+                    statusBox.style.background = "#dc3545"; // สีแดง
+                    statusBox.style.boxShadow = "0 0 15px rgba(220, 53, 69, 0.7)";
                     statusBox.style.display = 'block';
                     
                     setTimeout(() => { 
                         statusBox.style.display = 'none'; 
                     }, 2000);
                 }
-                // 🟢 กรณีที่ 2: สแกนเจอนักเรียนในระบบ
-                else if (data.student_id && data.student_id !== "Unknown") {
+                // กรณีที่ 2: สแกนเจอนักเรียนในระบบ
+                else if (sid && sid !== "Unknown") {
                     isSuccess = true;
                     loadingText.style.display = 'none';
                     
-                    statusBox.innerHTML = `✅ เช็คชื่อสำเร็จ!<br>รหัสนักศึกษา: ${data.student_id}`;
-                    statusBox.style.background = "#198754"; // คืนค่ากลับเป็นสีเขียว
+                    // 🟠 กรณีที่ 2.1: สแกนซ้ำ (สแกนไปแล้ววันนี้)
+                    if (knownScannedIds.has(sid)) {
+                        statusBox.innerHTML = `⚠️ สแกนซ้ำ!<br><span style="font-size: 1rem; font-weight: normal;">รหัส ${sid} สแกนไปแล้ววันนี้</span>`;
+                        statusBox.style.background = "#fd7e14"; // สีส้ม
+                        statusBox.style.boxShadow = "0 0 15px rgba(253, 126, 20, 0.7)";
+                    } 
+                    // 🟢 กรณีที่ 2.2: สแกนครั้งแรกของวัน
+                    else {
+                        statusBox.innerHTML = `✅ เช็คชื่อสำเร็จ!<br><span style="font-size: 1rem; font-weight: normal;">รหัสนักศึกษา: ${sid}</span>`;
+                        statusBox.style.background = "#198754"; // สีเขียว
+                        statusBox.style.boxShadow = "0 0 15px rgba(25, 135, 84, 0.7)";
+                        knownScannedIds.add(sid); // บันทึกลงในความจำมือถือว่าคนนี้สแกนแล้ว
+                    }
+
                     statusBox.style.display = 'block';
                     
                     setTimeout(() => { 
                         statusBox.style.display = 'none'; 
                         loadingText.style.display = 'block'; 
                         isSuccess = false; 
-                    }, 3000);
+                    }, 3000); // แสดงข้อความค้างไว้ 3 วินาที
                 }
             })
             .catch(err => { isSending = false; });
