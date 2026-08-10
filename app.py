@@ -230,7 +230,7 @@ def generate_frames():
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
                     # 🟢 ปรับความเข้มงวดเป็น 60 ให้สแกนผ่านกล้องได้ง่ายขึ้น
-                    if conf < 50: 
+                    if conf < 60: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
                 color = (0, 255, 0) if student_id != "ไม่พบข้อมูลในระบบ" else (0, 0, 255)
@@ -582,6 +582,33 @@ def edit_student():
             
         conn.commit()
         conn.close()
+        
+        # 🟢 ถ้ามีการแนบรูปภาพมาด้วย ให้จัดการเซฟและเทรน AI ใหม่
+        if 'image' in data and data['image']:
+            file_name = f"{data['student_id']}.jpg"
+            file_path = os.path.join(UPLOAD_FOLDER, file_name)
+            
+            # ถอดรหัสรูปภาพ
+            image_bytes = base64.b64decode(data['image'].split(",")[1])
+            
+            # 1. บันทึกทับไฟล์เดิมในเครื่อง
+            with open(file_path, "wb") as f: 
+                f.write(image_bytes)
+                
+            # 2. อัปโหลดรูปใหม่ไปทับใน Supabase
+            try:
+                supabase.storage.from_("img").upload(
+                    path=file_name,
+                    file=image_bytes,
+                    file_options={"upsert": "true"}
+                )
+                print("✅ อัปเดตรูปลง Supabase สำเร็จ!")
+            except Exception as e:
+                print("❌ อัปเดตรูปลง Supabase ไม่สำเร็จ:", e)
+                
+            # 3. สั่งให้ AI เรียนรู้ใบหน้าจากรูปใหม่ทันที!
+            train_ai_auto()
+            load_ai_model()
         
         backup_db_bg()  # สั่ง Backup หลังแก้ไขข้อมูลนักเรียน
         return jsonify({"status": "success"})
