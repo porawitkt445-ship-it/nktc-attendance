@@ -147,7 +147,7 @@
 
                 <!-- กล้อง -->
                 <div class="text-center mt-4">
-                    <button type="button" class="btn btn-info w-100 mb-3 text-white fw-bold" id="startCameraBtn">📸 เปิดกล้องบันทึกใบหน้า</button>
+                    <button type="button" class="btn btn-info w-100 mb-3 text-white fw-bold" id="startCameraBtn">📸 เปิดกล้องบันทึกใบหน้า (ถ้ามี)</button>
                     
                     <div id="cameraArea" class="d-none">
                         <div class="camera-container"><video id="cameraFeed" autoplay playsinline muted></video></div>
@@ -208,6 +208,15 @@
         let uploadedBase64 = "";
         let currentFacingMode = "user"; 
 
+        // 🟢 ระบบเก็บข้อมูลรหัสนักเรียนเก่าเพื่อเช็คการลงทะเบียนซ้ำ
+        let existingStudentIds = new Set();
+        fetch('/api/students', { cache: 'no-store' })
+            .then(r => r.json())
+            .then(data => {
+                data.forEach(student => existingStudentIds.add(student.student_id));
+            })
+            .catch(err => console.error("Error fetching students:", err));
+
         function startCamera(mode) {
             if (streamReference) streamReference.getTracks().forEach(t => t.stop());
             navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } })
@@ -252,7 +261,19 @@
 
         document.getElementById('registerForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            if(!uploadedBase64) { alert("กรุณาถ่ายรูปใบหน้า!"); return; }
+            
+            const studentId = document.getElementById('student_id').value;
+            
+            // 🔴 ตรวจสอบว่ารหัสนักเรียนถูกลงทะเบียนไปแล้วหรือยัง
+            if (existingStudentIds.has(studentId)) {
+                const confirmOverwrite = confirm(`⚠️ รหัสนักเรียน "${studentId}" มีการลงทะเบียนไปแล้วในระบบ!\n\nคุณต้องการบันทึกข้อมูลและรูปภาพใหม่ทับข้อมูลเดิมหรือไม่?`);
+                if (!confirmOverwrite) {
+                    return; // ยกเลิกการบันทึกถ้าผู้ใช้กด Cancel
+                }
+            }
+
+            // 🟢 ปิดระบบบังคับให้ถ่ายรูปแล้ว สามารถกดบันทึกโดยไม่มีรูปได้
+            // if(!uploadedBase64) { alert("กรุณาถ่ายรูปใบหน้า!"); return; }
             
             const prefix = document.getElementById('prefix').value;
             const firstname = document.getElementById('name').value;
@@ -263,7 +284,7 @@
 
             // ส่งข้อมูลโดยไม่มี citizen_id
             const data = {
-                student_id: document.getElementById('student_id').value,
+                student_id: studentId,
                 name: fullName,
                 phone: document.getElementById('phone').value,
                 address: addressFull,
@@ -271,7 +292,7 @@
                 department: document.getElementById('department').value,
                 room: document.getElementById('room').value,
                 class_group: document.getElementById('class_group').value,
-                image: uploadedBase64
+                image: uploadedBase64 // ถ้าไม่ได้ถ่ายรูป ค่านี้จะเป็น string ว่าง ("") ฝั่งหลังบ้านจะรับได้โดยไม่ Error
             };
 
             fetch('/api/register', {
