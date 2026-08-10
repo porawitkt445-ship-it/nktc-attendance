@@ -167,6 +167,14 @@
                                 <label class="form-label fw-bold">ที่อยู่</label>
                                 <textarea class="form-control" id="edit_address" rows="2"></textarea>
                             </div>
+                            <!-- 🟢 เพิ่มช่องอัปโหลดรูปตรงนี้ -->
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label fw-bold text-primary">📸 อัปเดตรูปภาพใบหน้า (เว้นว่างไว้ถ้าใช้รูปเดิม)</label>
+                                <input type="file" class="form-control" id="edit_image" accept="image/*">
+                                <div class="mt-2 text-center" id="edit_image_preview_container" style="display: none;">
+                                    <img id="edit_image_preview" src="" alt="Preview" style="max-height: 150px; border-radius: 8px; border: 2px solid #00d2ff;">
+                                </div>
+                            </div>
                         </div>
                         <div class="text-end mt-3">
                             <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">ยกเลิก</button>
@@ -257,11 +265,38 @@
             statusSelect.value = "กำลังศึกษา";
         }
         
+        // 🟢 เคลียร์ช่องอัปโหลดรูปและพรีวิวทุกครั้งที่เปิด Modal
+        document.getElementById('edit_image').value = '';
+        document.getElementById('edit_image_preview_container').style.display = 'none';
+        document.getElementById('edit_image_preview').src = '';
+        
         editModal.show();
     }
 
+    // 🟢 โชว์พรีวิวรูปภาพตอนที่ผู้ใช้กดเลือกไฟล์
+    document.getElementById('edit_image').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const previewContainer = document.getElementById('edit_image_preview_container');
+        const previewImg = document.getElementById('edit_image_preview');
+        
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                previewImg.src = event.target.result;
+                previewContainer.style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        } else {
+            previewImg.src = '';
+            previewContainer.style.display = 'none';
+        }
+    });
+
+    // 🟢 ระบบบันทึกข้อมูล (พร้อมส่งรูป)
     document.getElementById('editForm').addEventListener('submit', function(e) {
         e.preventDefault();
+        
+        const fileInput = document.getElementById('edit_image');
         
         const data = {
             student_id: document.getElementById('edit_student_id').value,
@@ -269,23 +304,41 @@
             class_group: document.getElementById('edit_class_group').value,
             phone: document.getElementById('edit_phone').value,
             address: document.getElementById('edit_address').value,
-            status: document.getElementById('edit_status').value
+            status: document.getElementById('edit_status').value,
+            image: "" // เตรียมตัวแปรใส่รูป
         };
 
+        // ถ้ามีการอัปโหลดรูปใหม่ ให้แปลงรูปเป็น Base64 ก่อนส่ง
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                data.image = event.target.result; 
+                sendEditRequest(data);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            // ถ้าไม่เปลี่ยนรูป ก็ส่งไปเซฟเลย
+            sendEditRequest(data);
+        }
+    });
+
+    // ฟังก์ชันย่อยสำหรับยิง API
+    function sendEditRequest(data) {
         fetch('/api/edit-student', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
         }).then(r => r.json()).then(res => {
             if(res.status === 'success') {
-                alert('อัปเดตข้อมูลนักเรียนเรียบร้อยแล้ว!');
+                alert('อัปเดตข้อมูลนักเรียน (และรูปภาพ) เรียบร้อยแล้ว!');
                 editModal.hide();
                 loadStudents(); 
             } else {
                 alert('เกิดข้อผิดพลาด: ' + res.message);
             }
         });
-    });
+    }
 
     function deleteStudent(studentId, studentName) {
         if(confirm(`⚠️ คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลของ:\n"${studentName}" (รหัส: ${studentId})\n\n*การลบนี้จะลบทั้งประวัติเข้าเรียนและรูปภาพด้วย`)) {
