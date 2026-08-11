@@ -43,7 +43,6 @@ def download_images_from_supabase():
         print("❌ ไม่สามารถโหลดรูปจาก Supabase ได้:", e)
 
 # ----------------- ระบบ Backup & Restore -----------------
-# 🟢 แก้ไขใหม่: ดึงทีเดียว 3 ไฟล์ (ฐานข้อมูล + สมอง AI 2 ไฟล์)
 def restore_files():
     files_to_restore = ["attendance.db", "trainer.yml", "labels.pkl"]
     for filename in files_to_restore:
@@ -55,7 +54,6 @@ def restore_files():
         except Exception as e:
             print(f"ℹ️ ยังไม่มีไฟล์ {filename} บนคลาวด์ (จะสร้างใหม่): {e}")
 
-# 🟢 แก้ไขใหม่: แบ็คอัปขึ้นคลาวด์ทีเดียว 3 ไฟล์
 def backup_files():
     files_to_backup = ["attendance.db", "trainer.yml", "labels.pkl"]
     for filename in files_to_backup:
@@ -71,7 +69,6 @@ def backup_files():
             except Exception as e:
                 print(f"❌ แบ็คอัป {filename} ไม่สำเร็จ:", e)
 
-# รันการแบ็คอัปแบบพื้นหลัง (ใช้ชื่อเดิมเพื่อไม่ให้กระทบโค้ดส่วนอื่น)
 def backup_db_bg():
     threading.Thread(target=backup_files).start()
 # ---------------------------------------------------------------
@@ -126,11 +123,10 @@ def load_ai_model():
         is_ai_ready = True
         print("✅ โหลดสมอง AI สำเร็จ!")
 
-# 🟢 เรียกใช้งานฟังก์ชันเริ่มต้นระบบ (ปรับลำดับใหม่)
-restore_files()  # ดึงไฟล์ทั้งหมดจากคลาวด์ก่อน
+restore_files()  
 init_db()
 download_images_from_supabase()
-load_ai_model()  # โหลดสมอง AI เข้าความจำทันที
+load_ai_model()  
 
 def connect_db(): return sqlite3.connect("attendance.db")
 
@@ -148,7 +144,6 @@ def train_ai_auto():
                 img = Image.open(os.path.join(UPLOAD_FOLDER, file)).convert("L")
                 img_np = np.array(img, "uint8")
                 
-                # 🟢 เทคนิคเกลี่ยแสงให้ภาพสว่างเท่ากันก่อนให้ AI จำหน้า
                 img_np = cv2.equalizeHist(img_np)
                 
                 faces = face_cascade.detectMultiScale(img_np, 1.1, 4)
@@ -160,22 +155,19 @@ def train_ai_auto():
         recognizer.save("trainer.yml")
         with open("labels.pkl", "wb") as f: pickle.dump(label_ids, f)
 
-# --- แก้ไขระบบป้องกันการสแกนซ้ำสำหรับทดสอบ ---
+# --- ระบบป้องกันการสแกนซ้ำ ---
 scanned_students = {}
 SCAN_COOLDOWN = 10 # หน่วงเวลา 10 วินาที
 
 def log_attendance(student_id):
     current_time = time.time()
     
-    # 1. เช็ค Cooldown ใน Memory ป้องกันการประมวลผลรัวๆ
     if student_id in scanned_students:
         if current_time - scanned_students[student_id] < SCAN_COOLDOWN:
             return 
             
     try:
         conn = connect_db()
-        
-        # 2. เช็คในฐานข้อมูลว่า วันนี้ (เวลาไทย) รหัสนี้มีการเช็คชื่อไปหรือยัง
         cur = conn.execute("""
             SELECT id FROM attendance_logs 
             WHERE student_id = ? AND date(timestamp, '+7 hours') = date('now', '+7 hours')
@@ -183,19 +175,16 @@ def log_attendance(student_id):
         
         row = cur.fetchone()
         
-        # 3. ถ้ายังไม่มีข้อมูลของวันนี้ ค่อยบันทึกใหม่
         if not row:
             conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
             conn.commit()
             
-        # อัปเดตเวลาที่สแกนล่าสุด
         scanned_students[student_id] = current_time
         conn.close()
         
-        backup_db_bg()  # สั่ง Backup ทันทีที่มีการเช็คชื่อ
+        backup_db_bg()  
     except sqlite3.Error as e:
         print(f"Database error: {e}")
-# ----------------------------------------------
 
 # ระบบประมวลผลกล้อง
 def generate_frames():
@@ -220,7 +209,6 @@ def generate_frames():
             if not success: continue
             
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            # 🟢 ปรับลดเงาและเกลี่ยให้ภาพสว่างขึ้น
             gray = cv2.equalizeHist(gray)
             
             faces = face_cascade.detectMultiScale(gray, 1.2, 5)
@@ -229,7 +217,7 @@ def generate_frames():
                 student_id = "ไม่พบข้อมูลในระบบ" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    # 🟢 ปรับความเข้มงวดเป็น 60 ให้สแกนผ่านกล้องได้ง่ายขึ้น
+                    # 🟢 ปรับค่าความเข้มงวดเป็น 70 เพื่อให้สแกนผ่านได้ง่ายขึ้น
                     if conf < 70: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
@@ -257,7 +245,6 @@ def process_frame():
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # 🟢 ปรับลดเงาและเกลี่ยให้ภาพสว่างขึ้น
         gray = cv2.equalizeHist(gray)
         
         faces = face_cascade.detectMultiScale(gray, 1.2, 5)
@@ -266,8 +253,8 @@ def process_frame():
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                # 🟢 ปรับความเข้มงวดเป็น 60 ให้สแกนผ่านกล้องมือถือได้ง่ายขึ้น
-                if conf < 60: 
+                # 🟢 ปรับค่าความเข้มงวดเป็น 70 สำหรับกล้องมือถือ
+                if conf < 70: 
                     matched_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                     if matched_id != "ไม่พบข้อมูลในระบบ":
                         student_id = matched_id
@@ -370,11 +357,9 @@ def register():
         file_path = os.path.join(UPLOAD_FOLDER, file_name)
         image_bytes = base64.b64decode(data['image'].split(",")[1])
         
-        # บันทึกลงเครื่องท้องถิ่น
         with open(file_path, "wb") as f: 
             f.write(image_bytes)
             
-        # อัปโหลดรูปภาพขึ้น Supabase Storage (ถังชื่อ img)
         try:
             supabase.storage.from_("img").upload(
                 path=file_name,
@@ -388,7 +373,7 @@ def register():
         train_ai_auto()
         load_ai_model()
         
-    backup_db_bg()  # สั่ง Backup ฐานข้อมูลและสมอง AI ทันทีหลังลงทะเบียนเสร็จ
+    backup_db_bg()  
     return jsonify({"status": "success"})
 
 @app.route('/api/manual-checkin', methods=['POST'])
@@ -424,7 +409,7 @@ def manual_checkin():
         conn.commit()
         conn.close()
         
-        backup_db_bg()  # สั่ง Backup หลังแก้เช็คชื่อ
+        backup_db_bg()  
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -492,11 +477,9 @@ def delete_student(student_id):
         conn.execute("DELETE FROM attendance_logs WHERE student_id = ?", (student_id,))
         conn.commit(); conn.close()
         
-        # ลบไฟล์ภาพในเครื่อง
         img_path = os.path.join(UPLOAD_FOLDER, f"{student_id}.jpg")
         if os.path.exists(img_path): os.remove(img_path)
         
-        # ลบไฟล์ภาพออกจาก Supabase Storage (ถังชื่อ img)
         try:
             supabase.storage.from_("img").remove([f"{student_id}.jpg"])
         except:
@@ -505,7 +488,7 @@ def delete_student(student_id):
         if student_id in scanned_students: del scanned_students[student_id]
         train_ai_auto(); load_ai_model()
         
-        backup_db_bg()  # สั่ง Backup หลังลบนักเรียน
+        backup_db_bg()  
         return jsonify({"status": "success"})
     except: return jsonify({"status": "error"}), 500
     
@@ -516,7 +499,7 @@ def delete_log(log_id):
         conn.execute("DELETE FROM attendance_logs WHERE id = ?", (log_id,))
         conn.commit(); conn.close()
         
-        backup_db_bg()  # สั่ง Backup หลังลบประวัติการเช็คชื่อ
+        backup_db_bg()  
         return jsonify({"status": "success"})
     except: return jsonify({"status": "error"}), 500
 
@@ -583,19 +566,15 @@ def edit_student():
         conn.commit()
         conn.close()
         
-        # 🟢 ถ้ามีการแนบรูปภาพมาด้วย ให้จัดการเซฟและเทรน AI ใหม่
         if 'image' in data and data['image']:
             file_name = f"{data['student_id']}.jpg"
             file_path = os.path.join(UPLOAD_FOLDER, file_name)
             
-            # ถอดรหัสรูปภาพ
             image_bytes = base64.b64decode(data['image'].split(",")[1])
             
-            # 1. บันทึกทับไฟล์เดิมในเครื่อง
             with open(file_path, "wb") as f: 
                 f.write(image_bytes)
                 
-            # 2. อัปโหลดรูปใหม่ไปทับใน Supabase
             try:
                 supabase.storage.from_("img").upload(
                     path=file_name,
@@ -606,11 +585,10 @@ def edit_student():
             except Exception as e:
                 print("❌ อัปเดตรูปลง Supabase ไม่สำเร็จ:", e)
                 
-            # 3. สั่งให้ AI เรียนรู้ใบหน้าจากรูปใหม่ทันที!
             train_ai_auto()
             load_ai_model()
         
-        backup_db_bg()  # สั่ง Backup หลังแก้ไขข้อมูลนักเรียน
+        backup_db_bg()  
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
