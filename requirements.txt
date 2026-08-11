@@ -33,3 +33,5 @@ Werkzeug==3.1.8
 xlsxwriter==3.2.9
 supabase
 gunicorn
+supabase
+gunicorn
