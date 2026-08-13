@@ -187,7 +187,7 @@ def generate_frames():
                 student_id = "ไม่พบข้อมูลในระบบ" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    if conf < 70: 
+                    if conf < 60: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
                 color = (0, 255, 0) if student_id != "ไม่พบข้อมูลในระบบ" else (0, 0, 255)
