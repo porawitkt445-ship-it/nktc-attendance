@@ -11,7 +11,6 @@
         .scan-container { width: 90%; max-width: 500px; text-align: center; }
         .camera-box { border: 3px solid #0dcaf0; border-radius: 12px; padding: 5px; background: #000; margin-bottom: 15px; }
         #video { width: 100%; border-radius: 8px; }
-        /* สลับซ้ายขวา (กระจก) เฉพาะกล้องหน้า */
         .mirror { transform: scaleX(-1); }
         
         #statusBox { 
@@ -40,32 +39,34 @@
         <canvas id="canvas" style="display:none;"></canvas>
     </div>
 
+    <!-- 🟢 เพิ่มไฟล์เสียงแจ้งเตือนตอนสแกนผ่าน -->
+    <audio id="successSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const statusBox = document.getElementById('statusBox');
         const loadingText = document.getElementById('loadingText');
         const switchBtn = document.getElementById('switchBtn');
+        const successSound = document.getElementById('successSound'); // 🟢 ดึงเสียงมาใช้
         
-        let currentFacingMode = "user"; // user = หน้า, environment = หลัง
+        let currentFacingMode = "user"; 
         let streamReference = null;
         let isSuccess = false;
         let isSending = false;
 
-        // 🟢 ระบบจดจำคนที่เคยสแกนไปแล้วของวันนี้
         let knownScannedIds = new Set();
+        let lastLoggedId = ""; 
 
-        // ดึงข้อมูลครั้งแรกตอนเปิดหน้าเว็บ
         fetch('/api/attendance-logs')
             .then(res => res.json())
             .then(logs => {
                 logs.forEach(log => knownScannedIds.add(log.student_id));
+                if (logs.length > 0) lastLoggedId = logs[0].student_id;
             })
             .catch(err => console.error("Error fetching logs: ", err));
 
-        // ฟังก์ชันเริ่มกล้อง
         function startCamera(mode) {
-            // ปิดกล้องตัวเก่าก่อนเสมอ
             if (streamReference) {
                 streamReference.getTracks().forEach(track => track.stop());
             }
@@ -76,7 +77,6 @@
                 video.srcObject = stream; 
                 loadingText.innerText = "กำลังสแกนใบหน้า...";
                 
-                // ถ้าเป็นกล้องหน้า ให้ใส่ Mirror ถ้าเป็นกล้องหลัง เอาออก
                 if (mode === "user") video.classList.add('mirror');
                 else video.classList.remove('mirror');
             })
@@ -86,16 +86,13 @@
             });
         }
 
-        // กดปุ่มสลับ
         switchBtn.addEventListener('click', () => {
             currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
             startCamera(currentFacingMode);
         });
 
-        // เริ่มต้น
         startCamera(currentFacingMode);
 
-        // ระบบส่งภาพไปประมวลผล
         setInterval(() => {
             if (video.videoWidth === 0 || isSuccess || isSending) return;
             isSending = true;
@@ -113,10 +110,9 @@
                 isSending = false;
                 const sid = data.student_id;
                 
-                // 🔴 กรณีที่ 1: สแกนเจอคนแปลกหน้า
                 if (sid === "ไม่พบข้อมูลในระบบ") {
                     statusBox.innerHTML = `❌ ไม่พบข้อมูลในระบบ!`;
-                    statusBox.style.background = "#dc3545"; // สีแดง
+                    statusBox.style.background = "#dc3545"; 
                     statusBox.style.boxShadow = "0 0 15px rgba(220, 53, 69, 0.7)";
                     statusBox.style.display = 'block';
                     
@@ -124,36 +120,58 @@
                         statusBox.style.display = 'none'; 
                     }, 2000);
                 }
-                // กรณีที่ 2: สแกนเจอนักเรียนในระบบ
                 else if (sid && sid !== "Unknown") {
-                    isSuccess = true;
-                    loadingText.style.display = 'none';
-                    
-                    // 🟠 กรณีที่ 2.1: สแกนซ้ำ (สแกนไปแล้ววันนี้)
-                    if (knownScannedIds.has(sid)) {
-                        statusBox.innerHTML = `⚠️ สแกนซ้ำ!<br><span style="font-size: 1rem; font-weight: normal;">รหัส ${sid} สแกนไปแล้ววันนี้</span>`;
-                        statusBox.style.background = "#fd7e14"; // สีส้ม
-                        statusBox.style.boxShadow = "0 0 15px rgba(253, 126, 20, 0.7)";
-                    } 
-                    // 🟢 กรณีที่ 2.2: สแกนครั้งแรกของวัน
-                    else {
-                        statusBox.innerHTML = `✅ เช็คชื่อสำเร็จ!<br><span style="font-size: 1rem; font-weight: normal;">รหัสนักศึกษา: ${sid}</span>`;
-                        statusBox.style.background = "#198754"; // สีเขียว
-                        statusBox.style.boxShadow = "0 0 15px rgba(25, 135, 84, 0.7)";
-                        knownScannedIds.add(sid); // บันทึกลงในความจำมือถือว่าคนนี้สแกนแล้ว
+                    // ไม่แจ้งเตือนคนสแกนซ้ำตรงนี้ ปล่อยให้มันเงียบๆ ไป
+                    if (!knownScannedIds.has(sid)) {
+                        isSuccess = true;
+                        loadingText.style.display = 'none';
+                        
+                        // ถ้ารหัสนี้ยังไม่เคยสแกน ให้อัปเดตสถานะและเปิดเสียง
+                        setTimeout(() => checkLatestStatusAndAlert(sid), 500); 
                     }
-
-                    statusBox.style.display = 'block';
-                    
-                    setTimeout(() => { 
-                        statusBox.style.display = 'none'; 
-                        loadingText.style.display = 'block'; 
-                        isSuccess = false; 
-                    }, 3000); // แสดงข้อความค้างไว้ 3 วินาที
                 }
             })
             .catch(err => { isSending = false; });
         }, 800);
+
+        // 🟢 ฟังก์ชันดึงสถานะล่าสุดมาดูว่า "มาเรียน" หรือ "สาย"
+        function checkLatestStatusAndAlert(scannedSid) {
+            fetch('/api/attendance-logs')
+                .then(response => response.json())
+                .then(logs => {
+                    if (logs.length > 0) {
+                        const lastLog = logs[0];
+                        
+                        // ตรวจสอบว่าคนที่เพิ่งสแกนตรงกับข้อมูลล่าสุดในฐานข้อมูลหรือไม่
+                        if (lastLog.student_id === scannedSid) {
+                            
+                            // 🟢 เล่นเสียงแจ้งเตือน
+                            successSound.currentTime = 0;
+                            successSound.play().catch(e => console.log("Audio Error:", e));
+
+                            // 🟢 กำหนดสีและข้อความตามสถานะ (มาเรียน = เขียว, สาย = ส้ม)
+                            if (lastLog.status === 'สาย') {
+                                statusBox.innerHTML = `⏰ เช็คชื่อ (มาสาย)<br><span style="font-size: 1rem; font-weight: normal;">${lastLog.name} (รหัส: ${scannedSid})</span>`;
+                                statusBox.style.background = "#fd7e14"; 
+                                statusBox.style.boxShadow = "0 0 15px rgba(253, 126, 20, 0.7)";
+                            } else {
+                                statusBox.innerHTML = `✅ เช็คชื่อสำเร็จ!<br><span style="font-size: 1rem; font-weight: normal;">${lastLog.name} (รหัส: ${scannedSid})</span>`;
+                                statusBox.style.background = "#198754"; 
+                                statusBox.style.boxShadow = "0 0 15px rgba(25, 135, 84, 0.7)";
+                            }
+
+                            statusBox.style.display = 'block';
+                            knownScannedIds.add(scannedSid); // บันทึกลงระบบกันสแกนซ้ำ
+
+                            setTimeout(() => { 
+                                statusBox.style.display = 'none'; 
+                                loadingText.style.display = 'block'; 
+                                isSuccess = false; 
+                            }, 3000);
+                        }
+                    }
+                });
+        }
     </script>
 </body>
 </html>

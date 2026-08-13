@@ -11,8 +11,7 @@
         .scan-container { width: 90%; max-width: 500px; text-align: center; }
         .scan-header { font-weight: 600; color: #198754; margin-bottom: 10px; }
         .camera-box { border: 2px solid #ffc107; border-radius: 12px; padding: 5px; background: #000; margin-bottom: 20px; position: relative;}
-        /* เปลี่ยนมาใช้ video เพื่อเล่นภาพจากกล้องเว็บแคมผ่านเบราว์เซอร์ */
-        .camera-box video { width: 100%; border-radius: 8px; transform: scaleX(-1); /* สลับซ้ายขวาให้เหมือนกระจก */ }
+        .camera-box video { width: 100%; border-radius: 8px; transform: scaleX(-1); }
         
         #statusBox {
             background: #198754; color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;
@@ -33,7 +32,6 @@
         <div id="statusBox"></div>
         
         <div class="camera-box">
-            <!-- ซ่อน canvas ไว้ประมวลผล -->
             <video id="videoElement" autoplay playsinline></video>
             <canvas id="canvasElement" style="display: none;"></canvas>
         </div>
@@ -41,23 +39,23 @@
         <a href="/dashboard" class="btn btn-back">🏠 กลับเมนูหลัก</a>
     </div>
 
+    <!-- 🟢 เพิ่มไฟล์เสียงแจ้งเตือนตอนสแกนผ่าน -->
+    <audio id="successSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
     <script>
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('canvasElement');
         const ctx = canvas.getContext('2d');
+        const successSound = document.getElementById('successSound'); // 🟢 ดึงเสียงมาใช้
 
-        // --- ส่วนจัดการสถานะ Popup ---
-        let knownScannedIds = new Set(); // เก็บ ID ที่เคยสแกนไปแล้วของวันนี้
+        let knownScannedIds = new Set(); 
         let lastLoggedId = "";
         let isShowingPopup = false;
         let currentPopupId = null;
         let popupTimeout = null;
 
-        // ฟังก์ชันอเนกประสงค์สำหรับแสดงกล่องข้อความ
         function showPopup(type, title, text, sid = null) {
-            // ป้องกันไม่ให้ข้อความเตือนสแกนซ้ำ ไปทับข้อความสีเขียว (สแกนสำเร็จ) ที่เพิ่งขึ้น
             if (isShowingPopup && currentPopupId === sid && type === "warning") return;
-            // ป้องกันกล่อง Error เด้งรัวๆ
             if (isShowingPopup && type === "error") return;
 
             isShowingPopup = true;
@@ -65,14 +63,18 @@
             const box = document.getElementById('statusBox');
 
             if (type === "success") {
-                box.style.background = "#198754"; // สีเขียว
+                box.style.background = "#198754"; 
                 box.style.boxShadow = "0 0 15px rgba(25, 135, 84, 0.7)";
+            } else if (type === "late") { // 🟢 เพิ่มสีสำหรับคนมาสาย
+                box.style.background = "#fd7e14"; 
+                box.style.boxShadow = "0 0 15px rgba(253, 126, 20, 0.7)";
             } else if (type === "error") {
-                box.style.background = "#dc3545"; // สีแดง
+                box.style.background = "#dc3545"; 
                 box.style.boxShadow = "0 0 15px rgba(220, 53, 69, 0.7)";
             } else if (type === "warning") {
-                box.style.background = "#fd7e14"; // สีส้ม
-                box.style.boxShadow = "0 0 15px rgba(253, 126, 20, 0.7)";
+                box.style.background = "#ffc107"; 
+                box.style.color = "#000"; // เปลี่ยนตัวหนังสือเป็นสีดำให้อ่านง่าย
+                box.style.boxShadow = "0 0 15px rgba(255, 193, 7, 0.7)";
             }
 
             box.innerHTML = `
@@ -84,12 +86,12 @@
             if(popupTimeout) clearTimeout(popupTimeout);
             popupTimeout = setTimeout(() => {
                 box.style.display = 'none';
+                box.style.color = "white"; // คืนค่าสีตัวหนังสือ
                 isShowingPopup = false;
                 currentPopupId = null;
             }, 3000);
         }
 
-        // ดึงข้อมูลครั้งแรกตอนเปิดหน้าเว็บ เพื่อจำว่าวันนี้ใครสแกนไปแล้วบ้าง
         fetch('/api/attendance-logs')
             .then(res => res.json())
             .then(logs => {
@@ -97,7 +99,6 @@
                 if (logs.length > 0) lastLoggedId = logs[0].student_id;
             });
 
-        // ขออนุญาตเปิดกล้องเว็บแคม
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
             .then(function(stream) {
                 video.srcObject = stream;
@@ -112,7 +113,6 @@
                 alert("ไม่สามารถเข้าถึงกล้องได้ กรุณากดอนุญาตให้เบราว์เซอร์ใช้งานกล้องเว็บแคม");
             });
 
-        // ฟังก์ชันแคปภาพจากวิดีโอส่งไปให้ Python ประมวลผล
         function sendFrameToServer() {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -128,10 +128,9 @@
                     const sid = data.student_id;
                     
                     if (sid === "ไม่พบข้อมูลในระบบ") {
-                        showPopup("error", "❌ ไม่พบข้อมูลในระบบ!", "กรุณาติดต่อครูเพื่อลงทะเบียนใบหน้า", "unknown");
+                        showPopup("error", "❌ ไม่พบข้อมูลในระบบ!", "กรุณาติดต่อครูเพื่อลงทะเบียน", "unknown");
                     } 
                     else if (sid) {
-                        // 🟢 ถ้ารหัสนี้มีในระบบ และ เคยสแกนไปแล้ววันนี้
                         if (knownScannedIds.has(sid)) {
                             showPopup("warning", "⚠️ สแกนซ้ำ!", `รหัส ${sid} สแกนไปแล้ววันนี้`, sid);
                         }
@@ -141,7 +140,6 @@
             }
         }
 
-        // --- ส่วนที่ 2: ดึงประวัติการเช็คชื่อมาโชว์ Popup สีเขียวสำหรับคนใหม่ ---
         setInterval(() => {
             fetch('/api/attendance-logs')
                 .then(response => response.json())
@@ -149,15 +147,22 @@
                     if (logs.length > 0) {
                         const lastLog = logs[0];
                         
-                        // ถ้าเจอประวัติใหม่ล่าสุดที่ไม่ซ้ำกับตัวแปรที่จำไว้
                         if (lastLog.student_id !== lastLoggedId) {
                             lastLoggedId = lastLog.student_id;
-                            knownScannedIds.add(lastLog.student_id); // บันทึกว่าคนนี้สแกนแล้ว
+                            knownScannedIds.add(lastLog.student_id); 
                             
+                            // 🟢 เล่นเสียงแจ้งเตือน
+                            successSound.currentTime = 0;
+                            successSound.play().catch(e => console.log("Audio play prevented:", e));
+
+                            // 🟢 เช็คว่ามาเรียน หรือ มาสาย
+                            let pType = lastLog.status === 'สาย' ? 'late' : 'success';
+                            let pTitle = lastLog.status === 'สาย' ? '⏰ เช็คชื่อ (มาสาย)' : '✅ เช็คชื่อสำเร็จ!';
+
                             showPopup(
-                                "success", 
-                                "✅ เช็คชื่อสำเร็จ!", 
-                                `${lastLog.name}<br><small style="font-size: 0.9rem; opacity: 0.9;">รหัส: ${lastLog.student_id} | แผนก: ${lastLog.department}</small>`, 
+                                pType, 
+                                pTitle, 
+                                `${lastLog.name}<br><small style="font-size: 0.9rem; opacity: 0.9;">รหัส: ${lastLog.student_id} | สถานะ: ${lastLog.status}</small>`, 
                                 lastLog.student_id
                             );
                         }
