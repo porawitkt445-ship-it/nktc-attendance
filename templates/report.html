@@ -140,7 +140,6 @@
         }
 
         #btnShowAbsent, #btnSwitchMode { border-radius: 10px; font-weight: 600; cursor: pointer; padding: 8px 18px; transition: 0.3s; }
-        .btn-del { padding: 4px 12px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 6px; }
 
         .search-box {
             border-radius: 10px;
@@ -215,40 +214,32 @@
             <!-- Header & Controls -->
             <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center mb-4 gap-3">
                 
-                <!-- Title (✅ แก้ไม่ให้ตกบรรทัดด้วย flex-shrink-0 และ text-nowrap) -->
                 <div class="flex-shrink-0">
                     <h4 class="fw-bold mb-1 text-nowrap" id="page-title" style="color: #000;">📊 รายงานเข้าเรียนรายวัน</h4>
                     <span class="text-muted d-block text-nowrap">ข้อมูลเฉพาะแผนก: <strong class="text-primary"><span id="deptName">{{ department }}</span></strong></span>
                 </div>
                 
-                <!-- Toolbars (Search, Filters, Buttons) -->
                 <div class="d-flex align-items-center flex-wrap gap-2 justify-content-start justify-content-xl-end w-100">
-                    
-                    <!-- Search Input -->
                     <input type="text" id="searchInput" class="search-box" placeholder="ค้นหารหัส หรือ ชื่อ..." onkeyup="filterTable()">
 
-                    <!-- Date/Month Picker Container -->
                     <div class="d-flex align-items-center gap-2">
-                        <!-- Daily Mode Picker -->
                         <div id="date-picker-group" class="d-flex align-items-center gap-2">
                             <label for="reportDate" class="fw-bold small text-secondary d-none d-sm-block mb-0 text-nowrap">เลือกวันที่:</label>
                             <input type="date" id="reportDate" class="form-control form-control-sm" style="width: 140px; border-radius: 8px; font-weight: 600;">
                         </div>
                         
-                        <!-- Summary Mode Picker -->
                         <div id="month-picker-group" class="d-flex align-items-center gap-2" style="display: none !important;">
                             <label for="reportMonth" class="fw-bold small text-secondary d-none d-sm-block mb-0 text-nowrap">เลือกเดือน:</label>
                             <input type="month" id="reportMonth" class="form-control form-control-sm" style="width: 140px; border-radius: 8px; font-weight: 600;">
                         </div>
                     </div>
                     
-                    <!-- Action Buttons -->
                     <button id="btnSwitchMode" class="btn btn-outline-primary btn-sm shadow-sm text-nowrap" onclick="switchReportMode()">
                         🔄 ดูสรุปยอดรายบุคคล
                     </button>
 
-                    <button id="btnManualModal" class="btn-manual-custom d-flex align-items-center gap-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#manualModal">
-                        <span>📝</span> เช็คชื่อ
+                    <button id="btnManualModal" class="btn-manual-custom d-flex align-items-center gap-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#manualModal" onclick="resetModal()">
+                        <span>📝</span> เช็คชื่อ / เพิ่มข้อมูล
                     </button>
                     
                     <button id="btnShowAbsent" class="btn btn-outline-danger btn-sm shadow-sm text-nowrap" onclick="toggleAbsentView()">
@@ -304,21 +295,19 @@
                 
                 <div class="modal-header text-white px-4 py-3" style="background: linear-gradient(135deg, #2b2946, #3f3c63);">
                     <h5 class="modal-title fw-bold d-flex align-items-center gap-2 fs-6 fs-md-5">
-                        <span>📝</span> เช็คชื่อนักเรียนด้วยตนเอง
+                        <span>📝</span> <span id="modalTitleText">จัดการเวลาและสถานะ</span>
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body p-4">
-                    <!-- Student Selection -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-secondary small">เลือกนักเรียนที่ต้องการเช็คชื่อ:</label>
+                        <label class="form-label fw-semibold text-secondary small">เลือกนักเรียนที่ต้องการจัดการ:</label>
                         <select id="modalStudentSelect" class="form-select py-2" style="border-radius: 10px; border-color: #ced4da; color: #000; font-size: 0.95rem;">
                             <option value="">กำลังโหลดรายชื่อ...</option>
                         </select>
                     </div>
 
-                    <!-- Date & Time Selection -->
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-sm-6">
                             <label class="form-label fw-semibold text-secondary small">วันที่เช็คชื่อ:</label>
@@ -330,7 +319,6 @@
                         </div>
                     </div>
                     
-                    <!-- Status Selection -->
                     <div class="mb-1">
                         <label class="form-label fw-semibold text-secondary small mb-2">สถานะการเข้าเรียน:</label>
                         <div class="d-flex flex-column gap-2">
@@ -420,7 +408,7 @@
 
             for (let i = 0; i < trs.length; i++) {
                 let tr = trs[i];
-                if (tr.getElementsByTagName('td').length === 1) continue; // Skip "No Data" row
+                if (tr.getElementsByTagName('td').length === 1) continue; 
 
                 let idCell = tr.getElementsByTagName('td')[1];
                 let nameCell = tr.getElementsByTagName('td')[2];
@@ -438,7 +426,6 @@
             }
         }
 
-        // --- Mode Switching Logic (Daily vs Summary) ---
         function switchReportMode() {
             const btnSwitch = document.getElementById('btnSwitchMode');
             const pageTitle = document.getElementById('page-title');
@@ -508,6 +495,25 @@
                     const nameDisplay = log.name ? log.name : '<span class="text-danger small" style="font-size:0.8rem;">⚠️ ยังไม่ได้ลงทะเบียน</span>';
                     const classDisplay = log.class_group || log.room || '-';
                     const timeDisplay = log.timestamp ? log.timestamp + ' น.' : '-';
+                    
+                    // เตรียมข้อมูลดิบสำหรับส่งเข้าโหมดแก้ไข
+                    const rawTimestamp = log.timestamp || '';
+                    const rawStatus = log.status || 'มาเรียน';
+
+                    let statusDisplay = '';
+                    if (isAbsent) {
+                        statusDisplay = `<span style="color: #dc3545;">❌ ขาดเรียน</span>`;
+                    } else {
+                        if (log.status === 'สาย') {
+                            statusDisplay = `<span style="color: #fd7e14;">⚠️ สาย</span>`;
+                        } else if (log.status === 'ลา') {
+                            statusDisplay = `<span style="color: #0dcaf0;">ℹ️ ลา</span>`;
+                        } else if (log.status === 'ฝึกงาน') {
+                            statusDisplay = `<span style="color: #0d6efd;">💼 ฝึกงาน</span>`;
+                        } else {
+                            statusDisplay = `<span style="color: #198754;">✅ มาเรียน</span>`;
+                        }
+                    }
 
                     tbody.innerHTML += `<tr>
                         <td>${i + 1}</td>
@@ -515,13 +521,16 @@
                         <td class="text-start">${nameDisplay}</td>
                         <td>${classDisplay}</td>
                         <td>${timeDisplay}</td>
-                        <td class="${isAbsent ? 'text-danger' : 'text-success'} fw-bold" style="color: ${isAbsent ? '#dc3545' : '#198754'} !important;">
-                            ${isAbsent ? '❌ ขาดเรียน' : '✅ มาเรียน'}
-                        </td>
+                        <td class="fw-bold">${statusDisplay}</td>
                         <td>
                             ${isAbsent ? 
                                 `<button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="manualCheckin('${log.student_id}')">✅ เช็คชื่อ</button>` : 
-                                `<button class="btn btn-danger btn-del shadow-sm" onclick="deleteLog(${log.id})">ลบ</button>`
+                                `
+                                <div class="d-flex justify-content-center gap-1">
+                                    <button class="btn btn-warning btn-sm shadow-sm text-dark fw-bold" onclick="openEditModal('${log.student_id}', '${rawTimestamp}', '${rawStatus}')" title="แก้ไขเวลาหรือสถานะ">✏️ แก้ไข</button>
+                                    <button class="btn btn-danger btn-sm shadow-sm fw-bold" onclick="deleteLog(${log.id})" title="ลบข้อมูล">🗑️ ลบ</button>
+                                </div>
+                                `
                             }
                         </td>
                     </tr>`;
@@ -562,7 +571,6 @@
             });
         }
 
-        // --- Event Listeners for Pickers ---
         document.getElementById('reportDate').addEventListener('change', () => loadData(showAbsent));
         document.getElementById('reportMonth').addEventListener('change', loadSummaryData);
 
@@ -574,6 +582,48 @@
                 if(students.length === 0) { select.innerHTML = '<option value="">ไม่พบรายชื่อนักเรียน</option>'; return; }
                 students.forEach(s => { select.innerHTML += `<option value="${s.student_id}">[${s.student_id}] ${s.name} (${s.class_group})</option>`; });
             });
+        }
+
+        // 🟢 ฟังก์ชันล้างค่าเวลาเปิด Modal จากปุ่มหลัก
+        function resetModal() {
+            document.getElementById('modalTitleText').innerText = "เพิ่มการเช็คชื่อ";
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('modalDate').value = today;
+            document.getElementById('modalTime').value = "08:30";
+            document.getElementById('statusPresent').checked = true;
+        }
+
+        // 🟢 ฟังก์ชันเปิด Modal พร้อมใส่ข้อมูลเก่าเพื่อรอแก้ไข
+        function openEditModal(studentId, timestampStr, currentStatus) {
+            document.getElementById('modalTitleText').innerText = "แก้ไขเวลาและสถานะ";
+            
+            let dateVal = document.getElementById('reportDate').value;
+            let timeVal = "08:30";
+
+            // แยกวันที่และเวลาจาก "DD/MM/YYYY HH:MM"
+            if (timestampStr && timestampStr.includes(" ")) {
+                let parts = timestampStr.split(" ");
+                let dateParts = parts[0].split("/"); // [DD, MM, YYYY]
+                if (dateParts.length === 3) {
+                    dateVal = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; // YYYY-MM-DD
+                }
+                timeVal = parts[1]; // HH:MM
+            }
+
+            document.getElementById('modalStudentSelect').value = studentId;
+            document.getElementById('modalDate').value = dateVal;
+            document.getElementById('modalTime').value = timeVal;
+
+            let statusRadios = document.getElementsByName('modalStatus');
+            for (let radio of statusRadios) {
+                if (radio.value === currentStatus) {
+                    radio.checked = true;
+                    break;
+                }
+            }
+
+            var editModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('manualModal'));
+            editModal.show();
         }
 
         function submitManualCheckin() {
@@ -593,7 +643,6 @@
             .then(r => r.json())
             .then(data => {
                 if(data.status === 'success') {
-                    alert('บันทึกเช็คชื่อสำเร็จ!');
                     bootstrap.Modal.getInstance(document.getElementById('manualModal')).hide();
                     if(currentMode === 'daily') loadData(showAbsent); else loadSummaryData();
                 } else alert('เกิดข้อผิดพลาด: ' + data.message);
@@ -610,7 +659,7 @@
                 })
                 .then(r => r.json())
                 .then(data => {
-                    if(data.status === 'success') { alert('เช็คชื่อสำเร็จ!'); loadData(showAbsent); }
+                    if(data.status === 'success') { loadData(showAbsent); }
                     else alert('เกิดข้อผิดพลาด: ' + data.message);
                 });
             }
@@ -627,8 +676,10 @@
             }
         }
 
-        // ✅ อัปเดตข้อมูลตารางอัตโนมัติทุกๆ 5 วินาที
         setInterval(() => {
+            // หยุดอัปเดตถ้ากำลังพิมพ์ค้นหาอยู่ (กันตารางกระพริบตอนกำลังจะกดแก้ไข)
+            if (document.getElementById('searchInput').value !== '') return;
+            
             if (currentMode === 'daily') {
                 loadData(showAbsent);
             } else if (currentMode === 'summary') {
