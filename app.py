@@ -12,7 +12,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ดึงไฟล์ Blueprint เข้ามาลิงก์กัน
 from departments import departments_bp, get_class_list
 from teachers import teachers_bp, init_teachers_db
-from app_2 import app_2_bp   # <--- 🟢 เพิ่มเชื่อมไฟล์ app_2
+# 🟢 แก้ไข: ดึง log_attendance มาจาก app_2 ด้วย
+from app_2 import app_2_bp, log_attendance   
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key' 
@@ -20,7 +21,7 @@ app.secret_key = 'super_secret_key'
 # เปิดใช้งานระบบแอปย่อย (Blueprints)
 app.register_blueprint(departments_bp)
 app.register_blueprint(teachers_bp)
-app.register_blueprint(app_2_bp)   # <--- 🟢 เปิดใช้งาน Blueprint ของ app_2
+app.register_blueprint(app_2_bp)   
 
 UPLOAD_FOLDER = 'img'
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
@@ -155,37 +156,6 @@ def train_ai_auto():
         recognizer.save("trainer.yml")
         with open("labels.pkl", "wb") as f: pickle.dump(label_ids, f)
 
-# --- ระบบป้องกันการสแกนซ้ำ ---
-scanned_students = {}
-SCAN_COOLDOWN = 10 # หน่วงเวลา 10 วินาที
-
-def log_attendance(student_id):
-    current_time = time.time()
-    
-    if student_id in scanned_students:
-        if current_time - scanned_students[student_id] < SCAN_COOLDOWN:
-            return 
-            
-    try:
-        conn = connect_db()
-        cur = conn.execute("""
-            SELECT id FROM attendance_logs 
-            WHERE student_id = ? AND date(timestamp, '+7 hours') = date('now', '+7 hours')
-        """, (student_id,))
-        
-        row = cur.fetchone()
-        
-        if not row:
-            conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, 'มาเรียน')", (student_id,))
-            conn.commit()
-            
-        scanned_students[student_id] = current_time
-        conn.close()
-        
-        backup_db_bg()  
-    except sqlite3.Error as e:
-        print(f"Database error: {e}")
-
 # ระบบประมวลผลกล้อง
 def generate_frames():
     global LAST_MOBILE_SEEN
@@ -217,7 +187,6 @@ def generate_frames():
                 student_id = "ไม่พบข้อมูลในระบบ" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    # 🟢 ปรับค่าความเข้มงวดเป็น 70 เพื่อให้สแกนผ่านได้ง่ายขึ้น
                     if conf < 70: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
@@ -227,7 +196,8 @@ def generate_frames():
                 cv2.putText(frame, student_id, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
                 
                 if student_id != "ไม่พบข้อมูลในระบบ": 
-                    log_attendance(student_id)
+                    # 🟢 แก้ไข: เรียกฟังก์ชัน log_attendance พร้อมส่งระบบ backup ไปด้วย
+                    log_attendance(student_id, backup_db_bg)
             
             _, buffer = cv2.imencode('.jpg', frame)
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
@@ -253,12 +223,12 @@ def process_frame():
         if is_ai_ready and len(faces) > 0:
             for (x, y, w, h) in faces:
                 id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                # 🟢 ปรับค่าความเข้มงวดเป็น 70 สำหรับกล้องมือถือ
                 if conf < 70: 
                     matched_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                     if matched_id != "ไม่พบข้อมูลในระบบ":
                         student_id = matched_id
-                        log_attendance(student_id)
+                        # 🟢 แก้ไข: เรียกฟังก์ชัน log_attendance พร้อมส่งระบบ backup ไปด้วย
+                        log_attendance(student_id, backup_db_bg)
                         break
         
         return jsonify({"student_id": student_id})
@@ -485,7 +455,6 @@ def delete_student(student_id):
         except:
             pass
             
-        if student_id in scanned_students: del scanned_students[student_id]
         train_ai_auto(); load_ai_model()
         
         backup_db_bg()  
@@ -603,13 +572,13 @@ def dashboard_stats():
     
     try:
         if period == 'month':
-            selected_month = request.args.get('month') # รูปแบบ YYYY-MM
+            selected_month = request.args.get('month') 
             if not selected_month: selected_month = datetime.now().strftime('%Y-%m')
             date_filter = f"strftime('%Y-%m', datetime(l.timestamp, '+7 hours')) = '{selected_month}'"
             
         elif period == 'week':
-            selected_month = request.args.get('month') # รูปแบบ YYYY-MM
-            week_num = int(request.args.get('week', 1)) # สัปดาห์ที่ 1-5
+            selected_month = request.args.get('month') 
+            week_num = int(request.args.get('week', 1)) 
             if not selected_month: selected_month = datetime.now().strftime('%Y-%m')
             
             year, month = map(int, selected_month.split('-'))
@@ -622,7 +591,7 @@ def dashboard_stats():
             else:
                 end_date_str = f"{year}-{month:02d}-{end_day:02d}"
                 date_filter = f"date(l.timestamp, '+7 hours') >= '{start_date}' AND date(l.timestamp, '+7 hours') <= '{end_date_str}'"
-        else:  # รายวัน (day)
+        else:  
             selected_date = request.args.get('date')
             if not selected_date: selected_date = datetime.now().strftime('%Y-%m-%d')
             date_filter = f"date(l.timestamp, '+7 hours') = '{selected_date}'"
