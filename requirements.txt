@@ -35,3 +35,5 @@ supabase
 gunicorn
 supabase
 gunicorn
+cloudinary
+requests
