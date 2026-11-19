@@ -1,13 +1,18 @@
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
-import sqlite3, cv2, os, numpy as np, base64, pickle, time, threading
+import sqlite3, cv2, os, numpy as np, base64, pickle, time, threading, requests
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
-from supabase import create_client
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
-# ตั้งค่าการเชื่อมต่อ Supabase (ใช้ Secret Key ตัวเต็ม)
-SUPABASE_URL = "https://rznilhmtsoacewnukcjd.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6bmlsaG10c29hY2V3bnVrY2pkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDc3MTQ3NSwiZXhwIjoyMTAwMzQ3NDc1fQ.Xw59WyROTjNazHnODT25OeTDYcK2PVB7r6yoflEQIZM"
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# ตั้งค่าการเชื่อมต่อ Cloudinary
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "ebumy3sw"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY", "291819993446382"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET", "YZ_GEMTNeTl5iXb2vxtwK_ipWv0"),
+    secure=True
+)
 
 # ดึงไฟล์ Blueprint เข้ามาลิงก์กัน
 from departments import departments_bp, get_class_list
@@ -26,47 +31,74 @@ app.register_blueprint(app_2_bp)
 UPLOAD_FOLDER = 'img'
 if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
 
-# ฟังก์ชันดาวน์โหลดรูปจาก Supabase Storage มาไว้ที่เซิร์ฟเวอร์ตอนเปิดระบบ
-def download_images_from_supabase():
+# ฟังก์ชันดาวน์โหลดรูปจาก Cloudinary มาไว้ที่เซิร์ฟเวอร์ตอนเปิดระบบ
+def download_images_from_cloudinary():
     try:
-        files = supabase.storage.from_("img").list()
-        if files:
-            for file in files:
-                file_name = file.get('name')
-                if file_name and file_name.lower().endswith((".jpg", ".png")):
-                    local_path = os.path.join(UPLOAD_FOLDER, file_name)
-                    if not os.path.exists(local_path):
-                        res = supabase.storage.from_("img").download(file_name)
+        res = cloudinary.api.resources(
+            type="upload",
+            resource_type="image",
+            prefix="nktc_img/",
+            max_results=500
+        )
+        resources = res.get("resources", [])
+        for item in resources:
+            public_id = item.get("public_id", "")
+            student_id = public_id.split("/")[-1]
+            file_name = f"{student_id}.jpg"
+            local_path = os.path.join(UPLOAD_FOLDER, file_name)
+            if not os.path.exists(local_path):
+                img_url = item.get("secure_url")
+                if img_url:
+                    img_res = requests.get(img_url, timeout=15)
+                    if img_res.status_code == 200:
                         with open(local_path, "wb") as f:
-                            f.write(res)
-            print("✅ โหลดรูปภาพจาก Supabase Storage สำเร็จ!")
+                            f.write(img_res.content)
+        print("✅ โหลดรูปภาพจาก Cloudinary สำเร็จ!")
     except Exception as e:
-        print("❌ ไม่สามารถโหลดรูปจาก Supabase ได้:", e)
+        print("❌ ไม่สามารถโหลดรูปจาก Cloudinary ได้:", e)
 
-# ----------------- ระบบ Backup & Restore -----------------
+# ----------------- ระบบ Backup & Restore (Cloudinary) -----------------
 def restore_files():
     files_to_restore = ["attendance.db", "trainer.yml", "labels.pkl"]
     for filename in files_to_restore:
         try:
-            res = supabase.storage.from_("img").download(filename)
-            with open(filename, "wb") as f:
-                f.write(res)
-            print(f"✅ ดึงไฟล์ {filename} จาก Supabase สำเร็จ!")
+            res = cloudinary.api.resource(f"nktc_backup/{filename}", resource_type="raw")
+            file_url = res.get("secure_url")
+            if file_url:
+                r = requests.get(file_url, timeout=15)
+                if r.status_code == 200:
+                    with open(filename, "wb") as f:
+                        f.write(r.content)
+                    print(f"✅ ดึงไฟล์ {filename} จาก Cloudinary สำเร็จ!")
         except Exception as e:
-            print(f"ℹ️ ยังไม่มีไฟล์ {filename} บนคลาวด์ (จะสร้างใหม่): {e}")
+            print(f"ℹ️ ยังไม่มีไฟล์ {filename} บน Cloudinary (ใช้ไฟล์ในเครื่อง/สร้างใหม่)")
+            # ถ้าในเครื่องมีไฟล์อยู่แล้ว ให้สำรองขึ้น Cloudinary ทันที
+            if os.path.exists(filename):
+                try:
+                    cloudinary.uploader.upload(
+                        filename,
+                        public_id=f"nktc_backup/{filename}",
+                        resource_type="raw",
+                        overwrite=True,
+                        invalidate=True
+                    )
+                    print(f"☁️ อัปโหลดไฟล์เดิม {filename} ขึ้น Cloudinary เริ่มต้นสำเร็จ!")
+                except Exception as up_err:
+                    print(f"❌ อัปโหลดไฟล์เดิม {filename} ไม่สำเร็จ:", up_err)
 
 def backup_files():
     files_to_backup = ["attendance.db", "trainer.yml", "labels.pkl"]
     for filename in files_to_backup:
         if os.path.exists(filename):
             try:
-                with open(filename, "rb") as f:
-                    supabase.storage.from_("img").upload(
-                        path=filename,
-                        file=f.read(),
-                        file_options={"upsert": "true"}
-                    )
-                print(f"✅ แบ็คอัป {filename} สำเร็จ")
+                cloudinary.uploader.upload(
+                    filename,
+                    public_id=f"nktc_backup/{filename}",
+                    resource_type="raw",
+                    overwrite=True,
+                    invalidate=True
+                )
+                print(f"✅ แบ็คอัป {filename} ลง Cloudinary สำเร็จ")
             except Exception as e:
                 print(f"❌ แบ็คอัป {filename} ไม่สำเร็จ:", e)
 
@@ -126,7 +158,7 @@ def load_ai_model():
 
 restore_files()  
 init_db()
-download_images_from_supabase()
+download_images_from_cloudinary()
 load_ai_model()  
 
 def connect_db(): return sqlite3.connect("attendance.db")
@@ -187,7 +219,7 @@ def generate_frames():
                 student_id = "ไม่พบข้อมูลในระบบ" 
                 if is_ai_ready:
                     id_, conf = recognizer.predict(gray[y:y+h, x:x+w])
-                    if conf < 60: 
+                    if conf < 70: 
                         student_id = labels.get(id_, "ไม่พบข้อมูลในระบบ")
                 
                 color = (0, 255, 0) if student_id != "ไม่พบข้อมูลในระบบ" else (0, 0, 255)
@@ -331,14 +363,16 @@ def register():
             f.write(image_bytes)
             
         try:
-            supabase.storage.from_("img").upload(
-                path=file_name,
-                file=image_bytes,
-                file_options={"upsert": "true"}
+            cloudinary.uploader.upload(
+                file_path,
+                public_id=f"nktc_img/{data['student_id']}",
+                resource_type="image",
+                overwrite=True,
+                invalidate=True
             )
-            print("✅ อัปโหลดรูปลง Supabase Storage สำเร็จ!")
+            print("✅ อัปโหลดรูปลง Cloudinary สำเร็จ!")
         except Exception as e:
-            print("❌ อัปโหลดรูปลง Supabase ไม่สำเร็จ:", e)
+            print("❌ อัปโหลดรูปลง Cloudinary ไม่สำเร็จ:", e)
             
         train_ai_auto()
         load_ai_model()
@@ -451,7 +485,7 @@ def delete_student(student_id):
         if os.path.exists(img_path): os.remove(img_path)
         
         try:
-            supabase.storage.from_("img").remove([f"{student_id}.jpg"])
+            cloudinary.uploader.destroy(f"nktc_img/{student_id}", resource_type="image", invalidate=True)
         except:
             pass
             
@@ -545,14 +579,16 @@ def edit_student():
                 f.write(image_bytes)
                 
             try:
-                supabase.storage.from_("img").upload(
-                    path=file_name,
-                    file=image_bytes,
-                    file_options={"upsert": "true"}
+                cloudinary.uploader.upload(
+                    file_path,
+                    public_id=f"nktc_img/{data['student_id']}",
+                    resource_type="image",
+                    overwrite=True,
+                    invalidate=True
                 )
-                print("✅ อัปเดตรูปลง Supabase สำเร็จ!")
+                print("✅ อัปเดตรูปลง Cloudinary สำเร็จ!")
             except Exception as e:
-                print("❌ อัปเดตรูปลง Supabase ไม่สำเร็จ:", e)
+                print("❌ อัปเดตรูปลง Cloudinary ไม่สำเร็จ:", e)
                 
             train_ai_auto()
             load_ai_model()

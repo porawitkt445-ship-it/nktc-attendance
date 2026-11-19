@@ -11,7 +11,7 @@ def connect_db():
     return sqlite3.connect("attendance.db")
 
 # =======================================================
-# 🟢 ย้ายระบบป้องกันการสแกนซ้ำ และ เช็คสาย มาไว้ที่นี่
+# 🟢 ระบบป้องกันการสแกนซ้ำ และ เช็คสาย
 # =======================================================
 scanned_students = {}
 SCAN_COOLDOWN = 10 # หน่วงเวลา 10 วินาที
@@ -32,6 +32,7 @@ def log_attendance(student_id, backup_callback=None):
         """, (student_id,))
         
         row = cur.fetchone()
+        need_backup = False
         
         if not row:
             # 2. ดึงเวลาปัจจุบัน (เทียบเป็นเวลาไทย +7 ชั่วโมง)
@@ -46,12 +47,13 @@ def log_attendance(student_id, backup_callback=None):
             # 4. บันทึกสถานะลงฐานข้อมูล
             conn.execute("INSERT INTO attendance_logs (student_id, status) VALUES (?, ?)", (student_id, attendance_status))
             conn.commit()
+            need_backup = True
             
         scanned_students[student_id] = current_time
         conn.close()
         
-        # 5. เรียกใช้ระบบ Backup กลับไปที่ app.py (ถ้ามีการส่งมา)
-        if backup_callback:
+        # 5. เรียกใช้ระบบ Backup เฉพาะตอนที่มีการบันทึกข้อมูลใหม่จริงๆ
+        if need_backup and backup_callback:
             backup_callback()
             
     except sqlite3.Error as e:
